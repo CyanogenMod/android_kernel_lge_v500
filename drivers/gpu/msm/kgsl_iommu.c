@@ -581,18 +581,13 @@ static int kgsl_iommu_pt_equal(struct kgsl_mmu *mmu,
 				struct kgsl_pagetable *pt,
 				unsigned int pt_base)
 {
-	struct kgsl_iommu *iommu = mmu->priv;
 	struct kgsl_iommu_pt *iommu_pt = pt ? pt->priv : NULL;
 	unsigned int domain_ptbase = iommu_pt ?
 				iommu_get_pt_base_addr(iommu_pt->domain) : 0;
 	/* Only compare the valid address bits of the pt_base */
-	domain_ptbase &=
-		(iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_mask <<
-		iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_shift);
+	domain_ptbase &= KGSL_IOMMU_CTX_TTBR0_ADDR_MASK;
 
-	pt_base &=
-		(iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_mask <<
-		iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_shift);
+	pt_base &= KGSL_IOMMU_CTX_TTBR0_ADDR_MASK;
 
 	return domain_ptbase && pt_base &&
 		(domain_ptbase == pt_base);
@@ -1095,6 +1090,9 @@ static int kgsl_set_register_map(struct kgsl_mmu *mmu)
 				iommu_unit->reg_map.size);
 		if (ret)
 			goto err;
+
+		iommu_unit->iommu_halt_enable = data.iommu_halt_enable;
+		iommu_unit->ahb_base = data.physstart - mmu->device->reg_phys;
 	}
 	iommu->unit_count = pdata_dev->iommu_count;
 	return ret;
@@ -1121,11 +1119,9 @@ err:
 static unsigned int kgsl_iommu_get_pt_base_addr(struct kgsl_mmu *mmu,
 						struct kgsl_pagetable *pt)
 {
-	struct kgsl_iommu *iommu = mmu->priv;
 	struct kgsl_iommu_pt *iommu_pt = pt->priv;
 	return iommu_get_pt_base_addr(iommu_pt->domain) &
-			(iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_mask <<
-			iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_shift);
+			KGSL_IOMMU_CTX_TTBR0_ADDR_MASK;
 }
 
 /*
@@ -1244,6 +1240,30 @@ static void kgsl_iommu_cleanup_regs(struct kgsl_mmu *mmu,
 		kgsl_mmu_unmap(pt, &iommu->sync_lock_desc);
 }
 
+
+/*
+ * kgsl_iommu_get_reg_ahbaddr - Returns the ahb address of the register
+ * @mmu - Pointer to mmu structure
+ * @iommu_unit - The iommu unit for which base address is requested
+ * @ctx_id - The context ID of the IOMMU ctx
+ * @reg - The register for which address is required
+ *
+ * Return - The address of register which can be used in type0 packet
+ */
+static unsigned int kgsl_iommu_get_reg_ahbaddr(struct kgsl_mmu *mmu,
+					int iommu_unit, int ctx_id,
+					enum kgsl_iommu_reg_map reg)
+{
+	struct kgsl_iommu *iommu = mmu->priv;
+
+	if (iommu->iommu_reg_list[reg].ctx_reg)
+		return iommu->iommu_units[iommu_unit].ahb_base +
+			iommu->iommu_reg_list[reg].reg_offset +
+			(ctx_id << KGSL_IOMMU_CTX_SHIFT) + iommu->ctx_offset;
+	else
+		return iommu->iommu_units[iommu_unit].ahb_base +
+			iommu->iommu_reg_list[reg].reg_offset;
+}
 
 static int kgsl_iommu_init(struct kgsl_mmu *mmu)
 {
@@ -1724,9 +1744,7 @@ kgsl_iommu_get_current_ptbase(struct kgsl_mmu *mmu)
 					KGSL_IOMMU_CONTEXT_USER,
 					TTBR0);
 	kgsl_iommu_disable_clk_on_ts(mmu, 0, false);
-	return pt_base &
-		(iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_mask <<
-		iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_shift);
+	return pt_base & KGSL_IOMMU_CTX_TTBR0_ADDR_MASK;
 }
 
 /*
@@ -1756,8 +1774,7 @@ static void kgsl_iommu_default_setstate(struct kgsl_mmu *mmu,
 		return;
 	}
 	/* Mask off the lsb of the pt base address since lsb will not change */
-	pt_base &= (iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_mask <<
-			iommu->iommu_reg_list[KGSL_IOMMU_CTX_TTBR0].reg_shift);
+	pt_base &= KGSL_IOMMU_CTX_TTBR0_ADDR_MASK;
 
 	/* For v1 SMMU GPU needs to be idle for tlb invalidate as well */
 	if (msm_soc_version_supports_iommu_v1())
@@ -1787,10 +1804,38 @@ static void kgsl_iommu_default_setstate(struct kgsl_mmu *mmu,
 	}
 	/* Flush tlb */
 	if (flags & KGSL_MMUFLAGS_TLBFLUSH) {
+		unsigned long wait_for_flush;
 		for (i = 0; i < iommu->unit_count; i++) {
 			KGSL_IOMMU_SET_CTX_REG(iommu, (&iommu->iommu_units[i]),
 				KGSL_IOMMU_CONTEXT_USER, TLBIALL, 1);
 			mb();
+			/*
+			 * Wait for flush to complete by polling the flush
+			 * status bit of TLBSTATUS register for not more than
+			 * 2 s. After 2s just exit, at that point the SMMU h/w
+			 * may be stuck and will eventually cause GPU to hang
+			 * or bring the system down.
+			 */
+			 /* naming mismatch */
+			if (!msm_soc_version_supports_iommu_v1()) {
+				wait_for_flush = jiffies +
+						msecs_to_jiffies(2000);
+				KGSL_IOMMU_SET_CTX_REG(iommu,
+					(&iommu->iommu_units[i]),
+					KGSL_IOMMU_CONTEXT_USER, TLBSYNC, 0);
+				while (KGSL_IOMMU_GET_CTX_REG(iommu,
+					(&iommu->iommu_units[i]),
+					KGSL_IOMMU_CONTEXT_USER, TLBSTATUS) &
+					(KGSL_IOMMU_CTX_TLBSTATUS_SACTIVE)) {
+					if (time_after(jiffies,
+						wait_for_flush)) {
+						KGSL_DRV_ERR(mmu->device,
+						"Wait limit reached for IOMMU tlb flush\n");
+						break;
+					}
+					cpu_relax();
+				}
+			}
 		}
 	}
 
@@ -1808,8 +1853,7 @@ static void kgsl_iommu_default_setstate(struct kgsl_mmu *mmu,
  * @ctx_id - The context ID of the IOMMU ctx
  * @reg - The register for which address is required
  *
- * Return - The number of iommu units which is also the number of register
- * mapped descriptor arrays which the out parameter will have
+ * Return - The gpu address of register which can be used in type3 packet
  */
 static unsigned int kgsl_iommu_get_reg_gpuaddr(struct kgsl_mmu *mmu,
 					int iommu_unit, int ctx_id, int reg)
@@ -1818,10 +1862,25 @@ static unsigned int kgsl_iommu_get_reg_gpuaddr(struct kgsl_mmu *mmu,
 
 	if (KGSL_IOMMU_GLOBAL_BASE == reg)
 		return iommu->iommu_units[iommu_unit].reg_map.gpuaddr;
-	else
+
+	if (iommu->iommu_reg_list[reg].ctx_reg)
 		return iommu->iommu_units[iommu_unit].reg_map.gpuaddr +
 			iommu->iommu_reg_list[reg].reg_offset +
 			(ctx_id << KGSL_IOMMU_CTX_SHIFT) + iommu->ctx_offset;
+	else
+		return iommu->iommu_units[iommu_unit].reg_map.gpuaddr +
+			iommu->iommu_reg_list[reg].reg_offset;
+}
+/*
+ * kgsl_iommu_hw_halt_supported - Returns whether IOMMU halt command is
+ * supported
+ * @mmu - Pointer to mmu structure
+ * @iommu_unit - The iommu unit for which the property is requested
+ */
+static int kgsl_iommu_hw_halt_supported(struct kgsl_mmu *mmu, int iommu_unit)
+{
+	struct kgsl_iommu *iommu = mmu->priv;
+	return iommu->iommu_units[iommu_unit].iommu_halt_enable;
 }
 
 static int kgsl_iommu_get_num_iommu_units(struct kgsl_mmu *mmu)
@@ -1843,11 +1902,11 @@ struct kgsl_mmu_ops iommu_ops = {
 	.mmu_disable_clk_on_ts = kgsl_iommu_disable_clk_on_ts,
 	.mmu_get_pt_lsb = kgsl_iommu_get_pt_lsb,
 	.mmu_get_reg_gpuaddr = kgsl_iommu_get_reg_gpuaddr,
+	.mmu_get_reg_ahbaddr = kgsl_iommu_get_reg_ahbaddr,
 	.mmu_get_num_iommu_units = kgsl_iommu_get_num_iommu_units,
 	.mmu_pt_equal = kgsl_iommu_pt_equal,
 	.mmu_get_pt_base_addr = kgsl_iommu_get_pt_base_addr,
-	.mmu_sync_lock = kgsl_iommu_sync_lock,
-	.mmu_sync_unlock = kgsl_iommu_sync_unlock,
+	.mmu_hw_halt_supported = kgsl_iommu_hw_halt_supported,
 	/* These callbacks will be set on some chipsets */
 	.mmu_setup_pt = NULL,
 	.mmu_cleanup_pt = NULL,

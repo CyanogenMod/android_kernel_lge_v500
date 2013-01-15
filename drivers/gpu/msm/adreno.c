@@ -698,8 +698,6 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 	/* Acquire GPU-CPU sync Lock here */
 	cmds += kgsl_mmu_sync_lock(&device->mmu, cmds);
 
-	pt_val = kgsl_mmu_get_pt_base_addr(&device->mmu,
-					device->mmu.hwpagetable);
 	if (flags & KGSL_MMUFLAGS_PTUPDATE) {
 		/*
 		 * We need to perfrom the following operations for all
@@ -788,11 +786,29 @@ static void adreno_iommu_setstate(struct kgsl_device *device,
 		kgsl_mmu_disable_clk_on_ts(&device->mmu,
 				adreno_dev->ringbuffer.global_ts, true);
 	}
+	/* invalidate all base pointers */
+	*cmds++ = cp_type3_packet(CP_INVALIDATE_STATE, 1);
+	*cmds++ = 0x7fff;
+	sizedwords += 2;
 
 	if ((unsigned int) (cmds - link) > (PAGE_SIZE / sizeof(unsigned int))) {
 		KGSL_DRV_ERR(device, "Temp command buffer overflow\n");
 		BUG();
 	}
+	/*
+	 * This returns the per context timestamp but we need to
+	 * use the global timestamp for iommu clock disablement
+	 */
+	adreno_ringbuffer_issuecmds(device, adreno_ctx, KGSL_CMD_FLAGS_PMODE,
+			&link[0], sizedwords);
+	/* timestamp based clock gating is currently unstable on iommuv1 */
+	/* naming mismatch */
+	if (msm_soc_version_supports_iommu_v1()) {
+		struct adreno_ringbuffer *rb = &adreno_dev->ringbuffer;
+		kgsl_mmu_disable_clk_on_ts(&device->mmu,
+			rb->global_ts, true);
+	}
+
 done:
 	kfree(link);
 	kgsl_context_put(context);
@@ -1328,6 +1344,8 @@ static int adreno_of_get_iommu(struct device_node *parent,
 
 	data->physstart = reg_val[0];
 	data->physend = data->physstart + reg_val[1] - 1;
+	data->iommu_halt_enable = of_property_read_bool(node,
+					"qcom,iommu-enable-halt");
 
 	data->iommu_ctx_count = 0;
 
