@@ -19,6 +19,7 @@
 #include <linux/of_device.h>
 #include <linux/msm_kgsl.h>
 #include <linux/delay.h>
+#include <linux/of_coresight.h>
 
 #include <mach/socinfo.h>
 #include <mach/msm_bus_board.h>
@@ -1463,6 +1464,9 @@ static int adreno_of_get_pdata(struct platform_device *pdev)
 	if (ret)
 		goto err;
 
+	pdata->coresight_pdata = of_get_coresight_platform_data(&pdev->dev,
+			pdev->dev.of_node);
+
 	pdev->dev.platform_data = pdata;
 	return 0;
 
@@ -1534,6 +1538,7 @@ static int __devinit
 adreno_probe(struct platform_device *pdev)
 {
 	struct kgsl_device *device;
+	struct kgsl_device_platform_data *pdata = NULL;
 	struct adreno_device *adreno_dev;
 	int status = -EINVAL;
 	bool is_dt;
@@ -1566,6 +1571,10 @@ adreno_probe(struct platform_device *pdev)
 	kgsl_pwrscale_attach_policy(device, ADRENO_DEFAULT_PWRSCALE_POLICY);
 
 	device->flags &= ~KGSL_FLAGS_SOFT_RESET;
+	pdata = kgsl_device_get_drvdata(device);
+
+	adreno_coresight_init(pdev);
+
 	return 0;
 
 error_close_rb:
@@ -1583,6 +1592,8 @@ static int __devexit adreno_remove(struct platform_device *pdev)
 
 	device = (struct kgsl_device *)pdev->id_entry->driver_data;
 	adreno_dev = ADRENO_DEVICE(device);
+
+	adreno_coresight_remove(pdev);
 
 	kgsl_pwrscale_detach_policy(device);
 	kgsl_pwrscale_close(device);
