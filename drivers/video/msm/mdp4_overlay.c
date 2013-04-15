@@ -3542,10 +3542,9 @@ int mdp4_overlay_set(struct fb_info *info, struct mdp_overlay *req)
 
 	ret = mdp4_overlay_mdp_perf_req(mfd);
 
-	if (ret) {
-		mdp4_overlay_pipe_free(pipe);
+	if (ret)
 		pr_err("%s: blt mode should not be enabled\n", __func__);
-	}
+
 	mutex_unlock(&mfd->dma->ov_mutex);
 
 	return ret;
