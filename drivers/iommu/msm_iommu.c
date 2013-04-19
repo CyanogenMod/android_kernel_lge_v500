@@ -49,6 +49,8 @@ __asm__ __volatile__ (							\
 #define MSM_IOMMU_ATTR_CACHED_WB_NWA	0x2
 #define MSM_IOMMU_ATTR_CACHED_WT	0x3
 
+static int msm_iommu_unmap_range(struct iommu_domain *domain, unsigned int va,
+				 unsigned int len);
 
 static inline void clean_pte(unsigned long *start, unsigned long *end,
 			     int redirect)
