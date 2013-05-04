@@ -55,6 +55,8 @@ static atomic_t g_bRuntimeRecord;
 #include "tspdrv_util.h"
 #include <linux/slab.h>
 
+#include"imm_timed_output.h"
+
 struct pm8xxx_vib *vib_dev;
 /* Device name and version information */
 #define VERSION_STR " v3.7.11.0\n"                  /* DO NOT CHANGE - this is auto-generated */
@@ -249,6 +251,9 @@ static int __init tspdrv_init(void)
         g_cchDeviceName += strlen(szName);
 
     }
+
+    ImmVibe_timed_output();
+
     return 0;
 }
 
@@ -374,6 +379,7 @@ static ssize_t write(struct file *file, const char *buf, size_t count, loff_t *p
 
     return count;
 }
+
 
 #if HAVE_UNLOCKED_IOCTL
 static long unlocked_ioctl(struct file *file, unsigned int cmd, unsigned long arg)

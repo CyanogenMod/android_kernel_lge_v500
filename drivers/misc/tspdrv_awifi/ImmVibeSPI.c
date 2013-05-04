@@ -222,7 +222,7 @@ static void vibrator_ic_enable_set(int enable)
 /*
 ** Called to disable amp (disable output force)
 */
-IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpDisable(VibeUInt8 nActuatorIndex)
+/*IMMVIBESPIAPI*/ VibeStatus ImmVibeSPI_ForceOut_AmpDisable(VibeUInt8 nActuatorIndex)
 {
     if (g_bAmpEnabled)
     {
@@ -243,11 +243,13 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpDisable(VibeUInt8 nActuatorIndex
 
     return VIBE_S_SUCCESS;
 }
+EXPORT_SYMBOL(ImmVibeSPI_ForceOut_AmpDisable);
+
 
 /*
 ** Called to enable amp (enable output force)
 */
-IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
+/*IMMVIBESPIAPI*/ VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
 {
     if (!g_bAmpEnabled)
     {
@@ -268,6 +270,7 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_AmpEnable(VibeUInt8 nActuatorIndex)
 
     return VIBE_S_SUCCESS;
 }
+EXPORT_SYMBOL(ImmVibeSPI_ForceOut_AmpEnable);
 
 /*
 ** Called at initialization time to set PWM freq, disable amp, etc...
@@ -414,6 +417,14 @@ IMMVIBESPIAPI VibeStatus ImmVibeSPI_ForceOut_SetFrequency(VibeUInt8 nActuatorInd
     return VIBE_S_SUCCESS;
 }
 #endif
+
+/* For tuning of the timed interface strength */
+#define DEFAULT_TIMED_STRENGTH 85
+VibeInt8 timedForce = DEFAULT_TIMED_STRENGTH;
+
+VibeStatus ImmVibeSPI_SetTimedSample(void) {
+    return ImmVibeSPI_ForceOut_SetSamples(0, 8, 1, &timedForce);
+}
 
 /*
 ** Called to get the device name (device name must be returned as ANSI char)

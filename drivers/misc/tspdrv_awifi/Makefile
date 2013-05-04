@@ -31,7 +31,7 @@ endif
 
 EXTRA_CFLAGS += -I$(M)
 
-obj-y += tspdrv.o
+obj-y += tspdrv.o imm_timed_output.o
 
 all:
 	@$(MAKE) -C $(KERNEL_ROOT) M=$(shell pwd) modules
