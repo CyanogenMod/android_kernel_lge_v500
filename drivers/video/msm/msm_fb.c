@@ -179,7 +179,7 @@ static ssize_t msm_fb_read(struct fb_info *info, char __user *buf,
 #define MSM_FB_MAX_DBGFS 1024
 #define MAX_BACKLIGHT_BRIGHTNESS 255
 
-#define WAIT_FENCE_FIRST_TIMEOUT MSEC_PER_SEC
+#define WAIT_FENCE_FIRST_TIMEOUT 3 * MSEC_PER_SEC
 #define WAIT_FENCE_FINAL_TIMEOUT 10 * MSEC_PER_SEC
 /* Display op timeout should be greater than total timeout */
 #define WAIT_DISP_OP_TIMEOUT (WAIT_FENCE_FIRST_TIMEOUT +\
@@ -2081,7 +2081,7 @@ void msm_fb_release_timeline(struct msm_fb_data_type *mfd)
 {
 	u32 commit_cnt;
 	mutex_lock(&mfd->sync_mutex);
-	commit_cnt = atomic_read(&mfd->commit_cnt) + 2;
+	commit_cnt = atomic_read(&mfd->commit_cnt) + 3;
 	if (commit_cnt < 0)
 		commit_cnt = 0;
 	if (mfd->timeline) {
