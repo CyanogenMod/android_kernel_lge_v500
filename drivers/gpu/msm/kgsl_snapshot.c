@@ -109,7 +109,7 @@ static int snapshot_context_info(int id, void *ptr, void *data)
 	struct kgsl_device *device;
 
 	if (context)
-		device = context->dev_priv->device;
+		device = context->device;
 	else
 		device = (struct kgsl_device *)data;
 
@@ -542,16 +542,6 @@ int kgsl_device_snapshot(struct kgsl_device *device, int hang)
 	int remain = device->snapshot_maxsize - sizeof(*header);
 	void *snapshot;
 	struct timespec boot;
-	int ret = 0;
-
-	/*
-	 * Bail if failed to get active count for GPU,
-	 * try again
-	 */
-	if (kgsl_active_count_get(device)) {
-		KGSL_DRV_ERR(device, "Failed to get GPU active count");
-		return -EINVAL;
-	}
 
 	/*
 	 * The first hang is always the one we are interested in. To
@@ -562,23 +552,19 @@ int kgsl_device_snapshot(struct kgsl_device *device, int hang)
 	 * of the state and never frozen.
 	 */
 
-	if (hang && device->snapshot_frozen == 1) {
-		ret = 0;
-		goto done;
-	}
+	if (hang && device->snapshot_frozen == 1)
+		return 0;
 
 	if (device->snapshot == NULL) {
 		KGSL_DRV_ERR(device,
 			"snapshot: No snapshot memory available\n");
-		ret = -ENOMEM;
-		goto done;
+		return -ENOMEM;
 	}
 
 	if (remain < sizeof(*header)) {
 		KGSL_DRV_ERR(device,
 			"snapshot: Not enough memory for the header\n");
-		ret = -ENOMEM;
-		goto done;
+		return -ENOMEM;
 	}
 
 	header->magic = SNAPSHOT_MAGIC;
@@ -614,10 +600,7 @@ int kgsl_device_snapshot(struct kgsl_device *device, int hang)
 			__pa(device->snapshot),	device->snapshot_size);
 	if (hang)
 		sysfs_notify(&device->snapshot_kobj, NULL, "timestamp");
-
-done:
-	kgsl_active_count_put(device);
-	return ret;
+	return 0;
 }
 EXPORT_SYMBOL(kgsl_device_snapshot);
 

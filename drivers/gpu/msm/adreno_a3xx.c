@@ -2317,7 +2317,7 @@ static int a3xx_create_gmem_shadow(struct adreno_device *adreno_dev,
 	tmp_ctx.gmem_base = adreno_dev->gmem_base;
 
 	result = kgsl_allocate(&drawctxt->context_gmem_shadow.gmemshadow,
-		drawctxt->pagetable, drawctxt->context_gmem_shadow.size);
+		drawctxt->base.pagetable, drawctxt->context_gmem_shadow.size);
 
 	if (result)
 		return result;
@@ -2351,7 +2351,7 @@ static int a3xx_drawctxt_create(struct adreno_device *adreno_dev,
 	 */
 
 	ret = kgsl_allocate(&drawctxt->gpustate,
-		drawctxt->pagetable, CONTEXT_SIZE);
+		drawctxt->base.pagetable, CONTEXT_SIZE);
 
 	if (ret)
 		return ret;
@@ -2377,32 +2377,38 @@ done:
 	return ret;
 }
 
-static void a3xx_drawctxt_save(struct adreno_device *adreno_dev,
+static int a3xx_drawctxt_save(struct adreno_device *adreno_dev,
 			   struct adreno_context *context)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
+	int ret;
 
 	if (context == NULL || (context->flags & CTXT_FLAGS_BEING_DESTROYED))
-		return;
+		return 0;
 
-	if (context->flags & CTXT_FLAGS_GPU_HANG)
-		KGSL_CTXT_WARN(device,
-			       "Current active context has caused gpu hang\n");
+	if (context->state == ADRENO_CONTEXT_STATE_INVALID)
+		return 0;
 
 	if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
 		/* Fixup self modifying IBs for save operations */
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE, context->save_fixup, 3);
+		if (ret)
+			return ret;
 
 		/* save registers and constants. */
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE,
 			context->regconstant_save, 3);
+		if (ret)
+			return ret;
 
 		if (context->flags & CTXT_FLAGS_SHADER_SAVE) {
 			/* Save shader instructions */
-			adreno_ringbuffer_issuecmds(device, context,
+			ret = adreno_ringbuffer_issuecmds(device, context,
 				KGSL_CMD_FLAGS_PMODE, context->shader_save, 3);
+			if (ret)
+				return ret;
 
 			context->flags |= CTXT_FLAGS_SHADER_RESTORE;
 		}
@@ -2415,43 +2421,60 @@ static void a3xx_drawctxt_save(struct adreno_device *adreno_dev,
 		 * already be saved.)
 		 */
 
-		kgsl_cffdump_syncmem(NULL,
+		kgsl_cffdump_syncmem(context->base.device,
 			&context->gpustate,
 			context->context_gmem_shadow.gmem_save[1],
 			context->context_gmem_shadow.gmem_save[2] << 2, true);
 
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 					KGSL_CMD_FLAGS_PMODE,
 					    context->context_gmem_shadow.
 					    gmem_save, 3);
+		if (ret)
+			return ret;
+
 		context->flags |= CTXT_FLAGS_GMEM_RESTORE;
 	}
+
+	return 0;
 }
 
-static void a3xx_drawctxt_restore(struct adreno_device *adreno_dev,
+static int a3xx_drawctxt_restore(struct adreno_device *adreno_dev,
 			      struct adreno_context *context)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
 	unsigned int cmds[5];
+	int ret = 0;
 
 	if (context == NULL) {
 		/* No context - set the default pagetable and thats it */
+		unsigned int id;
+		/*
+		 * If there isn't a current context, the kgsl_mmu_setstate
+		 * will use the CPU path so we don't need to give
+		 * it a valid context id.
+		 */
+		id = (adreno_dev->drawctxt_active != NULL)
+			? adreno_dev->drawctxt_active->base.id
+			: KGSL_CONTEXT_INVALID;
 		kgsl_mmu_setstate(&device->mmu, device->mmu.defaultpagetable,
-				adreno_dev->drawctxt_active->id);
-		return;
+				  id);
+		return 0;
 	}
-
-	KGSL_CTXT_INFO(device, "context flags %08x\n", context->flags);
 
 	cmds[0] = cp_nop_packet(1);
 	cmds[1] = KGSL_CONTEXT_TO_MEM_IDENTIFIER;
 	cmds[2] = cp_type3_packet(CP_MEM_WRITE, 2);
 	cmds[3] = device->memstore.gpuaddr +
 		KGSL_MEMSTORE_OFFSET(KGSL_MEMSTORE_GLOBAL, current_context);
-	cmds[4] = context->id;
-	adreno_ringbuffer_issuecmds(device, context, KGSL_CMD_FLAGS_NONE,
+	cmds[4] = context->base.id;
+	ret = adreno_ringbuffer_issuecmds(device, context, KGSL_CMD_FLAGS_NONE,
 					cmds, 5);
-	kgsl_mmu_setstate(&device->mmu, context->pagetable, context->id);
+	if (ret)
+		return ret;
+
+	kgsl_mmu_setstate(&device->mmu, context->base.pagetable,
+			context->base.id);
 
 	/*
 	 * Restore GMEM.  (note: changes shader.
@@ -2465,300 +2488,47 @@ static void a3xx_drawctxt_restore(struct adreno_device *adreno_dev,
 			context->context_gmem_shadow.gmem_restore[2] << 2,
 			true);
 
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 					KGSL_CMD_FLAGS_PMODE,
 					    context->context_gmem_shadow.
 					    gmem_restore, 3);
+		if (ret)
+			return ret;
 		context->flags &= ~CTXT_FLAGS_GMEM_RESTORE;
 	}
 
 	if (!(context->flags & CTXT_FLAGS_PREAMBLE)) {
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE, context->reg_restore, 3);
+		if (ret)
+			return ret;
 
 		/* Fixup self modifying IBs for restore operations */
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE,
 			context->restore_fixup, 3);
+		if (ret)
+			return ret;
 
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE,
 			context->constant_restore, 3);
+		if (ret)
+			return ret;
 
 		if (context->flags & CTXT_FLAGS_SHADER_RESTORE)
-			adreno_ringbuffer_issuecmds(device, context,
+			ret = adreno_ringbuffer_issuecmds(device, context,
 				KGSL_CMD_FLAGS_NONE,
 				context->shader_restore, 3);
-
+			if (ret)
+				return ret;
 		/* Restore HLSQ_CONTROL_0 register */
-		adreno_ringbuffer_issuecmds(device, context,
+		ret = adreno_ringbuffer_issuecmds(device, context,
 			KGSL_CMD_FLAGS_NONE,
 			context->hlsqcontrol_restore, 3);
 	}
-}
 
-static const unsigned int _a3xx_pwron_fixup_fs_instructions[] = {
-	0x00000000, 0x10000400, 0x00000000, 0x00000000,
-	0x00000000, 0x00000000, 0x00000000, 0x03000000,
-};
-
-/**
- * adreno_a3xx_pwron_fixup_init() - Initalize a special command buffer to run a
- * post-power collapse shader workaround
- * @adreno_dev: Pointer to a adreno_device struct
- *
- * A3xx targets require a CL Exec after recovery from power-collapse.
- * Construct the IB once at init time and keep it handy.
- *
- * Returns: 0 on success or negative on error
- */
-int adreno_a3xx_pwron_fixup_init(struct adreno_device *adreno_dev)
-{
-	unsigned int *cmds;
-	int count = sizeof(_a3xx_pwron_fixup_fs_instructions) >> 2;
-	int ret;
-	/* Return if the fixup is already in place */
-	if (test_bit(ADRENO_DEVICE_PWRON_FIXUP, &adreno_dev->priv))
-		return 0;
-
-	ret = kgsl_allocate_contiguous(&adreno_dev->pwron_fixup, PAGE_SIZE);
-
-	if (ret)
-		return ret;
-	adreno_dev->pwron_fixup.flags |= KGSL_MEMFLAGS_GPUREADONLY;
-	cmds = adreno_dev->pwron_fixup.hostptr;
-
-	*cmds++ = cp_type0_packet(A3XX_UCHE_CACHE_INVALIDATE0_REG, 2);
-	*cmds++ = 0x00000000;
-	*cmds++ = 0x90000000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_REG_RMW, 3);
-	*cmds++ = A3XX_RBBM_CLOCK_CTL;
-	*cmds++ = 0xFFFCFFFF;
-	*cmds++ = 0x00010000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_0_REG, 1);
-	*cmds++ = 0x1E000150;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_SET_CONSTANT, 2);
-	*cmds++ = CP_REG(A3XX_HLSQ_CONTROL_0_REG) | (0x1 << 30);
-	*cmds++ = 0x1E000150;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_0_REG, 1);
-	*cmds++ = 0x1E000150;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_1_REG, 1);
-	*cmds++ = 0x00000040;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_2_REG, 1);
-	*cmds++ = 0x80000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_3_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_VS_CONTROL_REG, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_FS_CONTROL_REG, 1);
-	*cmds++ = 0x00001002 | (count >> 3) << 24;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONST_VSPRESV_RANGE_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONST_FSPRESV_RANGE_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_0_REG, 1);
-	*cmds++ = 0x00401101;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_1_REG, 1);
-	*cmds++ = 0x00000400;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_2_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_3_REG, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_4_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_5_REG, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_NDRANGE_6_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_CONTROL_0_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_CONTROL_1_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_KERNEL_CONST_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_KERNEL_GROUP_X_REG, 1);
-	*cmds++ = 0x00000010;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_KERNEL_GROUP_Y_REG, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_KERNEL_GROUP_Z_REG, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_WG_OFFSET_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_SP_CTRL_REG, 1);
-	*cmds++ = 0x00040000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_CTRL_REG0, 1);
-	*cmds++ = 0x0000000A;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_CTRL_REG1, 1);
-	*cmds++ = 0x00000001;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_PARAM_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_4, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_5, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_6, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OUT_REG_7, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_VPC_DST_REG_0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_VPC_DST_REG_1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_VPC_DST_REG_2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_VPC_DST_REG_3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OBJ_OFFSET_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_OBJ_START_REG, 1);
-	*cmds++ = 0x00000004;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_PVT_MEM_PARAM_REG, 1);
-	*cmds++ = 0x04008001;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_PVT_MEM_ADDR_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_PVT_MEM_SIZE_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_VS_LENGTH_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_CTRL_REG0, 1);
-	*cmds++ = 0x00B0400A | (count >> 3) << 24;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_CTRL_REG1, 1);
-	*cmds++ = 0x00300402;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_OBJ_OFFSET_REG, 1);
-	*cmds++ = 0x00010000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_OBJ_START_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_PVT_MEM_PARAM_REG, 1);
-	*cmds++ = 0x04008001;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_PVT_MEM_ADDR_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_PVT_MEM_SIZE_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_FLAT_SHAD_MODE_REG_0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_FLAT_SHAD_MODE_REG_1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_OUTPUT_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_MRT_REG_0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_MRT_REG_1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_MRT_REG_2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_MRT_REG_3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_IMAGE_OUTPUT_REG_0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_IMAGE_OUTPUT_REG_1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_IMAGE_OUTPUT_REG_2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_IMAGE_OUTPUT_REG_3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_SP_FS_LENGTH_REG, 1);
-	*cmds++ = count >> 3;
-	*cmds++ = cp_type0_packet(A3XX_RB_MODE_CONTROL, 1);
-	*cmds++ = 0x00008000;
-	*cmds++ = cp_type0_packet(A3XX_RB_RENDER_CONTROL, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MSAA_CONTROL, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_ALPHA_REFERENCE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_CONTROL0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_CONTROL1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_CONTROL2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_CONTROL3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_INFO0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_INFO1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_INFO2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_INFO3, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_BASE0, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_BASE1, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_BASE2, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_MRT_BUF_BASE3, 1);
-	*cmds++ = 0x00000000;
-
-	*cmds++ = cp_type0_packet(A3XX_RB_PERFCOUNTER0_SELECT, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_PERFCOUNTER1_SELECT, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_RB_FRAME_BUFFER_DIMENSION, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-
-	*cmds++ = cp_type3_packet(CP_LOAD_STATE, 2 + count);
-	*cmds++ = (6 << CP_LOADSTATE_STATEBLOCKID_SHIFT) |
-		  ((count >> 3) << CP_LOADSTATE_NUMOFUNITS_SHIFT);
-	*cmds++ = 0x00000000;
-	memcpy(cmds, _a3xx_pwron_fixup_fs_instructions, count << 2);
-	cmds += count;
-
-	*cmds++ = cp_type3_packet(CP_EXEC_CL, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_nop_packet(1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CL_CONTROL_0_REG, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type0_packet(A3XX_HLSQ_CONTROL_0_REG, 1);
-	*cmds++ = 0x1E000150;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_SET_CONSTANT, 2);
-	*cmds++ = CP_REG(A3XX_HLSQ_CONTROL_0_REG);
-	*cmds++ = 0x1E000050;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_REG_RMW, 3);
-	*cmds++ = A3XX_RBBM_CLOCK_CTL;
-	*cmds++ = 0xFFFCFFFF;
-	*cmds++ = 0x00000000;
-	*cmds++ = cp_type3_packet(CP_WAIT_FOR_IDLE, 1);
-	*cmds++ = 0x00000000;
-
-	/*
-	 * Remember the number of dwords in the command buffer for when we
-	 * program the indirect buffer call in the ringbuffer
-	 */
-	adreno_dev->pwron_fixup_dwords =
-		(cmds - (unsigned int *)adreno_dev->pwron_fixup.hostptr);
-
-	/* Mark the flag in ->priv to show that we have the fix */
-	set_bit(ADRENO_DEVICE_PWRON_FIXUP, &adreno_dev->priv);
-	return 0;
+	return ret;
 }
 
 static int a3xx_rb_init(struct adreno_device *adreno_dev,
@@ -2820,6 +2590,9 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 
 		/* Clear the error */
 		adreno_regwrite(device, A3XX_RBBM_AHB_CMD, (1 << 3));
+
+		/* Trigger a fault in the interrupt handler */
+		adreno_dispatcher_irq_fault(device);
 		return;
 	}
 	case A3XX_INT_RBBM_REG_TIMEOUT:
@@ -2861,7 +2634,12 @@ static void a3xx_err_callback(struct adreno_device *adreno_dev, int bit)
 	case A3XX_INT_UCHE_OOB_ACCESS:
 		err = "UCHE:  Out of bounds access";
 		break;
+	default:
+		return;
 	}
+
+	/* Trigger a fault in the dispatcher - this will effect a restart */
+	adreno_dispatcher_irq_fault(device);
 
 	KGSL_DRV_CRIT(device, "%s\n", err);
 	kgsl_pwrctrl_irq(device, KGSL_PWRFLAGS_OFF);
@@ -2871,14 +2649,10 @@ static void a3xx_cp_callback(struct adreno_device *adreno_dev, int irq)
 {
 	struct kgsl_device *device = &adreno_dev->dev;
 
-	/* Wake up everybody waiting for the interrupt */
-	wake_up_interruptible_all(&device->wait_queue);
-
-	/* Schedule work to free mem and issue ibs */
+	/* Schedule the event queue */
 	queue_work(device->work_queue, &device->ts_expired_ws);
 
-	atomic_notifier_call_chain(&device->ts_notifier_list,
-				   device->id, NULL);
+	adreno_dispatcher_schedule(device);
 }
 
 /**
