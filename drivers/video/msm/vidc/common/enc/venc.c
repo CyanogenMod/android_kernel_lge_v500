@@ -260,6 +260,9 @@ static void vid_enc_output_frame_done(struct video_client_ctx *client_ctx,
 		/* Metadata offset */
 		venc_msg->venc_msg_info.buf.metadata_offset =
 			vcd_frame_data->metadata_offset;
+		/* Current ltr id */
+		venc_msg->venc_msg_info.buf.metadata_ltrid =
+			vcd_frame_data->curr_ltr_id;
 
 		/* Decoded picture width and height */
 		venc_msg->venc_msg_info.msgdata_size =

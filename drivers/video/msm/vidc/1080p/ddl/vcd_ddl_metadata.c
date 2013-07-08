@@ -529,6 +529,7 @@ void ddl_process_encoder_metadata(struct ddl_client_context *ddl)
 	u32 metadata_available = false;
 	out_frame->metadata_offset = 0;
 	out_frame->metadata_len = 0;
+	out_frame->curr_ltr_id = 0;
 	out_frame->flags &= ~(VCD_FRAME_FLAG_EXTRADATA);
 	if (!encoder->meta_data_enable_flag) {
 		DDL_MSG_HIGH("meta_data is not enabled");
@@ -538,11 +539,21 @@ void ddl_process_encoder_metadata(struct ddl_client_context *ddl)
 		DDL_MSG_LOW("meta_data exists");
 		metadata_available = true;
 	}
-	DDL_MSG_LOW("%s: data_len/metadata_offset : %d/%d", __func__,
-		out_frame->data_len, encoder->meta_data_offset);
-	out_frame->metadata_offset = encoder->meta_data_offset;
-	out_frame->metadata_len = encoder->suffix;
-	out_frame->flags |= VCD_FRAME_FLAG_EXTRADATA;
+	if ((encoder->meta_data_enable_flag & VCD_METADATA_LTR_INFO) &&
+		(encoder->ltr_control.meta_data_reqd == true)) {
+		out_frame->curr_ltr_id = encoder->ltr_control.curr_ltr_id;
+		DDL_MSG_LOW("%s: increment curr_ltr_id = %d",
+			__func__, (u32)encoder->ltr_control.curr_ltr_id);
+		encoder->ltr_control.curr_ltr_id++;
+		metadata_available = true;
+	}
+	if (metadata_available) {
+		DDL_MSG_LOW("%s: data_len/metadata_offset : %d/%d", __func__,
+			out_frame->data_len, encoder->meta_data_offset);
+		out_frame->metadata_offset = encoder->meta_data_offset;
+		out_frame->metadata_len = encoder->suffix;
+		out_frame->flags |= VCD_FRAME_FLAG_EXTRADATA;
+	}
 }
 
 void ddl_process_decoder_metadata(struct ddl_client_context *ddl)
