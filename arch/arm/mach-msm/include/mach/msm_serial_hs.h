@@ -45,6 +45,7 @@ struct msm_serial_hs_platform_data {
 	int uart_cts_gpio;
 	int uart_rfr_gpio;
 	int userid;
+	int uartdm_rx_buf_size;
 };
 
 //LG_BTUI : chanha.park@lge.com : Added bluesleep interface - [S]
