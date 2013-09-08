@@ -1341,6 +1341,7 @@ static int __init msm_pm_init(void)
 
 	return 0;
 }
+late_initcall(msm_pm_init);
 
 static void __devinit msm_pm_set_flush_fn(uint32_t pc_mode)
 {
@@ -1553,7 +1554,6 @@ static int __devinit msm_pm_8x60_probe(struct platform_device *pdev)
 	msm_pm_retention_calls_tz = pdata_local.retention_calls_tz;
 
 pm_8x60_probe_done:
-	msm_pm_init();
 	return ret;
 }
 
