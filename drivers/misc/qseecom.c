@@ -552,6 +552,9 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 	struct qseecom_client_listener_data_irsp send_data_rsp;
 	struct qseecom_registered_listener_list *ptr_svc = NULL;
 
+	#if 0//defined(CONFIG_LGE_BROADCAST_ONESEG) //QCT Patch SFS Fail
+	unsigned long end_time = 0;
+	#endif
 
 	while (resp->result == QSEOS_RESULT_INCOMPLETE) {
 		lstnr = resp->data;
@@ -576,12 +579,32 @@ static int __qseecom_process_incomplete_cmd(struct qseecom_dev_handle *data,
 		}
 		pr_debug("waking up rcv_req_wq and "
 				"waiting for send_resp_wq\n");
+
+		#if 0 //defined(CONFIG_LGE_BROADCAST_ONESEG) //QCT Patch SFS Fail
+		end_time = jiffies + msecs_to_jiffies(300);
+		
+		do {
+			if (!wait_event_freezable(qseecom.send_resp_wq,
+				__qseecom_listener_has_sent_rsp(data))) {
+				break;
+			}
+			else
+			{
+				if (time_after_eq(jiffies, end_time)) {
+					pr_warning("Interrupted_patchQCT: send_cmd loop Error Exit\n");
+					return -ERESTARTSYS;
+				}
+			}
+			pr_warning("Interrupted_patchQCT: send_cmd loop timeout wait\n");
+		} while (1);
+		#else
 		if (wait_event_freezable(qseecom.send_resp_wq,
 				__qseecom_listener_has_sent_rsp(data))) {
 			pr_warning("Interrupted: exiting send_cmd loop\n");
 			return -ERESTARTSYS;
 		}
-
+		#endif
+		
 		if (data->abort) {
 			pr_err("Aborting listener service %d\n",
 				data->listener.id);

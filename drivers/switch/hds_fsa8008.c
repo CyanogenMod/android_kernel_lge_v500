@@ -52,7 +52,7 @@
 #define HSD_DEBUG_PRINT
 
 #ifdef HSD_DEBUG_PRINT
-#define HSD_DBG(fmt, args...) printk(KERN_DEBUG "%s: " fmt, __func__, ##args)
+#define HSD_DBG(fmt, args...) printk(KERN_ERR "%s: " fmt, __func__, ##args)
 #else
 #define HSD_DBG(fmt, args...) do {} while (0)
 #endif
@@ -76,6 +76,13 @@ struct hsd_info {
 	unsigned int gpio_mic_bias_en; /* EN : to enable mic bias */
 	unsigned int gpio_jpole;  /* JPOLE : 3pole or 4pole */
 	unsigned int gpio_key;    /* S/E button */
+	
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [START]	
+	#if defined(CONFIG_MACH_APQ8064_AWIFI)
+	unsigned int gpio_power_en; /* EN : to enable 2V8_AUDIO_POWER_LDO */
+	unsigned int gpio_hph_en; /* EN : to enable 3V0_HPH_LDO */
+	#endif
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [END]
 
 	/* callback function which is initialized while probing */
 	void (*set_headset_mic_bias)(int enable);
@@ -185,6 +192,13 @@ static void insert_headset(struct hsd_info *hi)
 		hi->set_headset_mic_bias(1);
 
 	gpio_set_value_cansleep(hi->gpio_mic_en, 1);
+	
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [START]
+	#if defined(CONFIG_MACH_APQ8064_AWIFI)
+	gpio_set_value_cansleep(hi->gpio_power_en, 1);
+	gpio_set_value_cansleep(hi->gpio_hph_en, 1);
+	#endif
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [END]
 
 	msleep(hi->latency_for_detection);
 
@@ -192,6 +206,14 @@ static void insert_headset(struct hsd_info *hi)
 
 	if (earjack_type == HEADSET_3POLE) {
 		HSD_DBG("3 polarity earjack");
+
+		//2013-05-08 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Disable MIC BIAS LOD when insert  3 polarity earjack[START]
+		#if defined(CONFIG_MACH_APQ8064_AWIFI)
+		if (gpio_get_value(hi->gpio_power_en) != 0){
+			gpio_set_value_cansleep(hi->gpio_power_en, 0);
+		}
+		#endif
+		//2013-05-08 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Disable MIC BIAS LOD when insert  3 polarity earjack[END]
 
 		atomic_set(&hi->is_3_pole_or_not, 1);
 
@@ -353,7 +375,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_detect */
 	ret = gpio_request_one(hi->gpio_detect, GPIOF_IN, "gpio_detect");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_detect)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_detect)\n",
 				__func__, hi->gpio_detect);
 		goto error_01;
 	}
@@ -361,7 +383,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_jpole */
 	ret = gpio_request_one(hi->gpio_jpole, GPIOF_IN, "gpio_jpole");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_jpole)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_jpole)\n",
 				__func__, hi->gpio_jpole);
 		goto error_02;
 	}
@@ -369,7 +391,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_key */
 	ret = gpio_request_one(hi->gpio_key, GPIOF_IN, "gpio_key");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_key)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_key)\n",
 				__func__, hi->gpio_key);
 		goto error_03;
 	}
@@ -378,7 +400,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	ret = gpio_request_one(hi->gpio_mic_en, GPIOF_OUT_INIT_LOW,
 			"gpio_mic_en");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_mic_en)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_mic_en)\n",
 				__func__, hi->gpio_mic_en);
 		goto error_04;
 	}

@@ -1817,15 +1817,17 @@ static struct dst_entry *ipv4_dst_check(struct dst_entry *dst, u32 cookie)
 static void ipv4_dst_destroy(struct dst_entry *dst)
 {
 	struct rtable *rt = (struct rtable *) dst;
-	struct inet_peer *peer = rt->peer;
+	struct inet_peer *peer = (rt != NULL) ? rt->peer : NULL;
 
-	if (rt->fi) {
-		fib_info_put(rt->fi);
-		rt->fi = NULL;
-	}
-	if (peer) {
-		rt->peer = NULL;
-		inet_putpeer(peer);
+	if(rt != NULL){ //minjeon.kim@lge.com, for kernel crash
+		if (rt->fi) {
+			fib_info_put(rt->fi);
+			rt->fi = NULL;
+		}
+		if (peer) {
+			rt->peer = NULL;
+			inet_putpeer(peer);
+		}
 	}
 }
 

@@ -470,6 +470,11 @@ void mdp4_hw_init(void)
 	/* MDP cmd block disable */
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 	mdp_clk_ctrl(0);
+
+#ifdef CSC_RESTORE/*invert color*/
+	if (csc_dmap_changed)
+		mdp4_csc_config(&csc_cfg_backup_matrix);
+#endif
 }
 
 
@@ -652,8 +657,20 @@ irqreturn_t mdp4_isr(int irq, void *ptr)
 		mdp4_stat.intr_vsync_p++;
 		if (panel & MDP4_PANEL_LCDC)
 			mdp4_primary_vsync_lcdc();
-		else if (panel & MDP4_PANEL_DSI_VIDEO)
+		else if (panel & MDP4_PANEL_DSI_VIDEO) {
+#ifdef CONFIG_LGE_FPS_CONTROL
+			if (mdp4_stat.enable_skip_vsync) {
+				mdp4_stat.bucket += mdp4_stat.weight;
+				if (mdp4_stat.skip_value<=mdp4_stat.bucket) {
+					mdp4_primary_vsync_dsi_video();
+					mdp4_stat.bucket -= mdp4_stat.skip_value;
+				} else {
+					mdp4_stat.skip_count++;
+				}
+			} else
+#endif
 			mdp4_primary_vsync_dsi_video();
+		}
 	}
 #ifdef CONFIG_FB_MSM_DTV
 	if (isr & INTR_EXTERNAL_VSYNC) {

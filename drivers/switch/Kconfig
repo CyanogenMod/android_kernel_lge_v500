@@ -17,4 +17,10 @@ config SWITCH_FSA8008
 	help
 	 Say Y here to enable FSA8008 driver
 
+config SWITCH_MAX1462X
+	tristate "MAX1462x Headset detection driver"
+	default n
+	help
+	  Say Y here to enable GPIO based switch support.
+
 endif # SWITCH

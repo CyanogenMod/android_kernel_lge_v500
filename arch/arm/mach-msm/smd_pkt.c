@@ -1028,6 +1028,9 @@ static int __init smd_pkt_init(void)
 	}
 
 	for (i = 0; i < NUM_SMD_PKT_PORTS; ++i) {
+#if defined (CONFIG_BCMDHD) && !defined (CONFIG_WCNSS_CORE) && defined (CONFIG_MACH_APQ8064_GVAR_CMCC) //for wifi changed by wo0ngs,  2013-04-26
+		if (smd_ch_edge[i]  != SMD_APPS_WCNSS) {
+#endif			
 		smd_pkt_devp[i] = kzalloc(sizeof(struct smd_pkt_dev),
 					 GFP_KERNEL);
 		if (IS_ERR(smd_pkt_devp[i])) {
@@ -1084,8 +1087,13 @@ static int __init smd_pkt_init(void)
 					&dev_attr_open_timeout))
 			pr_err("%s: unable to create device attr for"
 			       " smd_pkt_dev id:%d\n", __func__, i);
+#if defined (CONFIG_BCMDHD) && !defined (CONFIG_WCNSS_CORE) && defined (CONFIG_MACH_APQ8064_GVAR_CMCC) //for wifi changed by wo0ngs,  2013-04-26
 	}
-
+	else {
+		pr_err("%s: brcm except  SMD_APPS_WCNSS cdev id: %d\n", __func__, i);
+	}
+#endif
+	}
 	INIT_DELAYED_WORK(&loopback_work, loopback_probe_worker);
 
 	smd_pkt_ilctxt = ipc_log_context_create(SMD_PKT_IPC_LOG_PAGE_CNT,

@@ -814,9 +814,18 @@ static inline int l2cap_mode_supported(__u8 mode, __u32 feat_mask)
 void l2cap_send_disconn_req(struct l2cap_conn *conn, struct sock *sk, int err)
 {
 	struct l2cap_disconn_req req;
-
+// [S] LGE_BT: MOD/ilbeom.kim/'12-09-18 - [GK] Merged based on G project
+/*+s LGBT_COMMON_AVOID_NULLPOINTER , avoid null pointer when disconnecting ,hseok.kim 2012-09-15*/
+	if (!conn || !conn->hcon)
+	{
+		return;
+	}
+/* Qualcomm Original
 	if (!conn)
 		return;
+*/
+/*+e LGBT_COMMON_AVOID_NULLPOINTER */
+// [E] LGE_BT: MOD/ilbeom.kim/'12-09-18 - [GK] Merged based on G project
 
 	sk->sk_send_head = NULL;
 	skb_queue_purge(TX_QUEUE(sk));

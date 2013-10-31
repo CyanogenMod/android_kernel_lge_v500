@@ -24,9 +24,9 @@
 #include <linux/types.h>
 #include <linux/workqueue.h>
 #include <linux/wakelock.h>
-#include <linux/slimport.h>
 
 #include "slimport_tx_drv.h"
+#include "linux/slimport.h"
 
 struct i2c_client *anx7808_client;
 
@@ -44,7 +44,12 @@ static bool hdcp_enable = 1;
 static bool hdcp_enable = 0;
 #endif
 
-static unchar slimport_link_bw = 0;
+/* LGE_CHANGE_START:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+static bool hold_power_off = 0;
+/* LGE_CHANGE_START:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+
+
+//static unchar slimport_link_bw = 0;
 
 int sp_read_reg(uint8_t slave_addr, uint8_t offset, uint8_t *buf)
 {
@@ -124,7 +129,7 @@ static void slimport_cable_plug_proc(struct anx7808_data *anx7808)
 	struct anx7808_platform_data *pdata = anx7808->pdata;
 
 	if (gpio_get_value_cansleep(pdata->gpio_cbl_det)) {
-		msleep(50);
+		msleep(100);
 		if (gpio_get_value_cansleep(pdata->gpio_cbl_det)) {
 			if (sp_tx_pd_mode) {
 				sp_tx_pd_mode = 0;
@@ -145,24 +150,31 @@ static void slimport_cable_plug_proc(struct anx7808_data *anx7808)
 					sp_tx_link_config_done = 0;
 					sp_tx_hw_lt_enable = 0;
 					sp_tx_hw_lt_done = 0;
-					sp_tx_rx_anx7730 = 0;
-					sp_tx_rx_mydp = 0;
+					sp_tx_rx_type = RX_NULL;
+					sp_tx_rx_type_backup = RX_NULL;
 					sp_tx_set_sys_state(STATE_CABLE_PLUG);
 					return;
 				}
+				sp_tx_rx_type_backup = sp_tx_rx_type;
 			}
-			if (sp_tx_rx_anx7730) {
+			switch(sp_tx_rx_type) {
+			case RX_HDMI:
 				if (sp_tx_get_hdmi_connection())
 					sp_tx_set_sys_state(STATE_PARSE_EDID);
-			} else if (sp_tx_rx_mydp) {
+				break;
+			case RX_DP:
 				if (sp_tx_get_dp_connection())
 					sp_tx_set_sys_state(STATE_PARSE_EDID);
-			} else {
+				break;
+			case RX_VGA:
 				if (sp_tx_get_vga_connection()) {
 					sp_tx_send_message(MSG_CLEAR_IRQ);
 					sp_tx_set_sys_state(STATE_PARSE_EDID);
 				}
-			}
+				break;
+			case RX_NULL:
+			default:
+				break;
 		}
 	} else if (sp_tx_pd_mode == 0) {
 		sp_tx_vbus_powerdown();
@@ -173,8 +185,21 @@ static void slimport_cable_plug_proc(struct anx7808_data *anx7808)
 		sp_tx_link_config_done = 0;
 		sp_tx_hw_lt_enable = 0;
 		sp_tx_hw_lt_done = 0;
-		sp_tx_rx_anx7730 = 0;
-		sp_tx_rx_mydp = 0;
+		sp_tx_rx_type = RX_NULL;
+		sp_tx_rx_type_backup = RX_NULL;
+		sp_tx_set_sys_state(STATE_CABLE_PLUG);
+		    }
+	}else if (sp_tx_pd_mode == 0) {
+		sp_tx_vbus_powerdown();
+		sp_tx_power_down(SP_TX_PWR_REG);
+		sp_tx_power_down(SP_TX_PWR_TOTAL);
+		sp_tx_hardware_powerdown();
+		sp_tx_pd_mode = 1;
+		sp_tx_link_config_done = 0;
+		sp_tx_hw_lt_enable = 0;
+		sp_tx_hw_lt_done = 0;
+		sp_tx_rx_type = RX_NULL;
+		sp_tx_rx_type_backup = RX_NULL;
 		sp_tx_set_sys_state(STATE_CABLE_PLUG);
 	}
 }
@@ -233,8 +258,9 @@ static void slimport_main_proc(struct anx7808_data *anx7808)
 		slimport_config_output();
 
 	if (sp_tx_system_state == STATE_HDCP_AUTH) {
-		if (hdcp_enable && (sp_tx_rx_anx7730
-			|| sp_tx_rx_mydp)) {
+		if ( hdcp_enable &&
+			((sp_tx_rx_type == RX_HDMI) ||
+			( sp_tx_rx_type ==RX_DP))) {
 			sp_tx_hdcp_process();
 		} else {
 			sp_tx_power_down(SP_TX_PWR_HDCP);
@@ -350,12 +376,57 @@ static irqreturn_t anx7808_cbl_det_isr(int irq, void *data)
 		queue_delayed_work(anx7808->workqueue, &anx7808->work, 0);
 	} else {
 		pr_info("%s : detect cable removal\n", __func__);
-		cancel_delayed_work_sync(&anx7808->work);
-		wake_unlock(&anx7808->slimport_lock);
-		wake_lock_timeout(&anx7808->slimport_lock, 2*HZ);
+		if (sp_tx_pd_mode == 0 || hold_power_off == 0) {
+			cancel_delayed_work_sync(&anx7808->work);
+			wake_unlock(&anx7808->slimport_lock);
+			wake_lock_timeout(&anx7808->slimport_lock, 2*HZ);
+		}
 	}
 	return IRQ_HANDLED;
 }
+
+/* LGE_CHANGE_START:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+static ssize_t power_ctl_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	int on_off;
+	struct i2c_client *client = container_of(dev, struct i2c_client, dev);
+	struct anx7808_data *anx7808 = i2c_get_clientdata(client);
+
+	if (!count)
+		return -EINVAL;
+
+	on_off = simple_strtoul(buf, NULL, 10);
+
+	mutex_lock(&anx7808->lock);
+
+	if(on_off) {
+		if (sp_tx_pd_mode == 1) {
+			pr_info("%s : Power On\n", __func__);
+			hold_power_off = 0;
+			sp_tx_set_sys_state(STATE_CABLE_PLUG);
+		}
+	} else {
+		if (sp_tx_pd_mode == 0) {
+			pr_info("%s : Power Down\n", __func__);
+			sp_tx_vbus_powerdown();
+			sp_tx_power_down(SP_TX_PWR_REG);
+			sp_tx_power_down(SP_TX_PWR_TOTAL);
+			sp_tx_hardware_powerdown();
+			sp_tx_pd_mode = 1;
+			sp_tx_link_config_done = 0;
+			sp_tx_hw_lt_enable = 0;
+			sp_tx_hw_lt_done = 0;
+			sp_tx_rx_type = RX_NULL;
+			sp_tx_rx_type_backup = RX_NULL;
+			hold_power_off = 1;
+		}
+	}
+	mutex_unlock(&anx7808->lock);
+	return count;
+}
+DEVICE_ATTR(power_ctl, 0200, NULL, power_ctl_store);
+/* LGE_CHANGE_END:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+
 
 static void anx7808_work_func(struct work_struct *work)
 {
@@ -413,7 +484,7 @@ static int anx7808_i2c_probe(struct i2c_client *client,
 	if (anx7808->workqueue == NULL) {
 		pr_err("%s: failed to create work queue\n", __func__);
 		ret = -ENOMEM;
-		goto err2;
+		goto err1; /* WBT:503163,503164 err2 => err1 */
 	}
 
 	anx7808->pdata->avdd_power(1);
@@ -453,6 +524,13 @@ static int anx7808_i2c_probe(struct i2c_client *client,
 		goto err3;
 	}
 	wake_lock_init(&anx7808->slimport_lock, WAKE_LOCK_SUSPEND, "slimport_wake_lock");
+
+	/* LGE_CHANGE_START:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+	ret = device_create_file(&client->dev, &dev_attr_power_ctl);
+	if(ret < 0)
+		printk("[LCD][DEBUG] %s : Cannot create the sysfs\n" , __func__);
+	/* LGE_CHANGE_END:2013-06-19:ilhwan.ahn@lge.com:Enable to power control for Slimport via SysFS. */
+
 	goto exit;
 
 err3:
@@ -507,6 +585,11 @@ void sp_set_link_bw(unchar link_bw)
 	slimport_link_bw = link_bw;
 }
 EXPORT_SYMBOL(sp_set_link_bw);
+bool slimport_is_vga_mode(void)
+{
+	return (sp_tx_rx_type == 0x03) ? TRUE : FALSE;
+}
+EXPORT_SYMBOL(slimport_is_vga_mode);
 
 static int anx7808_i2c_remove(struct i2c_client *client)
 {

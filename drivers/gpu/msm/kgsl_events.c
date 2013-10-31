@@ -138,6 +138,16 @@ void kgsl_cancel_events_ctxt(struct kgsl_device *device,
 
 	cur = kgsl_readtimestamp(device, context, KGSL_TIMESTAMP_RETIRED);
 	id = context->id;
+#if 1	// QCT Patch - Don't access context memory after it's freed
+	/*
+	 * Increment the refcount to avoid freeing the context while
+	 * cancelling its events
+	 */
+	kgsl_context_get(context);
+
+	/* Remove ourselves from the master pending list */
+	list_del_init(&context->events_list);
+#endif
 
 	list_for_each_entry_safe(event, event_tmp, &context->events, list) {
 		/*
@@ -162,8 +172,12 @@ void kgsl_cancel_events_ctxt(struct kgsl_device *device,
 		kgsl_active_count_put(device);
 	}
 
+#if 1	// QCT Patch - Don't access context memory after it's freed
+	kgsl_context_put(context);
+#else
 	/* Remove ourselves from the master pending list */
 	list_del_init(&context->events_list);
+#endif
 }
 
 /**
@@ -308,6 +322,13 @@ void kgsl_process_events(struct work_struct *work)
 	list_for_each_entry_safe(context, tmp, &device->events_pending_list,
 		events_list) {
 
+#if 1	// QCT Patch - Don't access context memory after it's freed
+		/*
+		  * Increment the refcount to make sure that the list_del_init
+		  * is called with a valid context's list
+		  */
+		 kgsl_context_get(context);
+#endif
 		/*
 		 * If kgsl_timestamp_expired_context returns 0 then it no longer
 		 * has any pending events and can be removed from the list
@@ -315,6 +336,9 @@ void kgsl_process_events(struct work_struct *work)
 
 		if (kgsl_process_context_events(device, context) == 0)
 			list_del_init(&context->events_list);
+#if 1	// QCT Patch - Don't access context memory after it's freed
+		kgsl_context_put(context);
+#endif
 	}
 
 	mutex_unlock(&device->mutex);

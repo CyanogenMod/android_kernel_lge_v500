@@ -23,6 +23,9 @@ struct msm_thermal_data {
 	int32_t core_limit_temp_degC;
 	int32_t core_temp_hysteresis_degC;
 	uint32_t core_control_mask;
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC) || defined(CONFIG_MACH_APQ8064_AWIFI)
+	uint32_t limit_temp_degC_low;
+#endif	
 };
 
 #ifdef CONFIG_THERMAL_MONITOR

@@ -1,4 +1,4 @@
-/* Copyright (c) 2009-2013, The Linux Foundation. All rights reserved.
+/* Copyright (c) 2009-2012, The Linux Foundation. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 and
@@ -744,15 +744,7 @@ static void tavarua_handle_interrupts(struct tavarua_device *radio)
 		return;
 	}
 	mutex_lock(&radio->lock);
-	retval = tavarua_read_registers(radio, STATUS_REG1, STATUS_REG_NUM);
-	if (retval < 0) {
-		FMDERR("Fails to read status register and try once again");
-		msleep(TAVARUA_DELAY);
-		retval = tavarua_read_registers(radio, STATUS_REG1,
-							STATUS_REG_NUM);
-		if (retval < 0)
-			FMDERR("Fails to read status register");
-	}
+	tavarua_read_registers(radio, STATUS_REG1, STATUS_REG_NUM);
 
 	FMDBG("INTSTAT1 <%x>\n", radio->registers[STATUS_REG1]);
 	FMDBG("INTSTAT2 <%x>\n", radio->registers[STATUS_REG2]);
@@ -4334,15 +4326,9 @@ static int tavarua_resume(struct platform_device *pdev)
 			retval = tavarua_setup_interrupts(radio,
 			(radio->registers[RDCTRL] & 0x03));
 			if (retval < 0) {
-				FMDERR("Fails to write RDCTRL");
-				msleep(TAVARUA_DELAY);
-				retval = tavarua_setup_interrupts(radio,
-				(radio->registers[RDCTRL] & 0x03));
-				if (retval < 0) {
-					FMDERR("Error in tavarua_resume %d\n",
-								retval);
-					return -EIO;
-				}
+				printk(KERN_INFO DRIVER_NAME "Error in \
+					tavarua_resume %d\n", retval);
+				return -EIO;
 			}
 		}
 	}

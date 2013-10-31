@@ -1785,7 +1785,7 @@ config AEABI
 config OABI_COMPAT
 	bool "Allow old ABI binaries to run with this kernel (EXPERIMENTAL)"
 	depends on AEABI && EXPERIMENTAL && !THUMB2_KERNEL
-	default y
+	default y if !SMP
 	help
 	  This option preserves the old syscall interface along with the
 	  new (ARM EABI) one. It also provides a compatibility layer to
@@ -2020,6 +2020,9 @@ config CP_ACCESS
 	  /sys/devices/cpaccess/cpaccess0.
 
 	  If unsure, say N.
+	  
+# 2013-05-02 Hyoungtaek-Lim[hyoungtaek.lim@lge.com)[A/vmware/common]VMware Switch
+source "arch/arm/mvp/Kconfig"
 
 endmenu
 

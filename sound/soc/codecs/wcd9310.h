@@ -184,6 +184,12 @@ struct tabla_mbhc_config {
 extern int tabla_hs_detect(struct snd_soc_codec *codec,
 			   const struct tabla_mbhc_config *cfg);
 
+//2013-04-18 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Add micbias3 for AWIFI [START]
+#ifdef CONFIG_SWITCH_FSA8008
+void tabla_codec_micbias3_ctl(int enable);
+#endif
+//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Add micbias3 for AWIFI [END]
+
 struct anc_header {
 	u32 reserved[3];
 	u32 num_anc_slots;
@@ -251,4 +257,17 @@ extern void *tabla_mbhc_cal_btn_det_mp(const struct tabla_mbhc_btn_detect_cfg
 	    (cfg_ptr->_n_rload * (sizeof(cfg_ptr->_rload[0]) + \
 				 sizeof(cfg_ptr->_alpha[0]))))
 
+#ifdef CONFIG_LGE_AUX_NOISE
+				 /*
+				  * 2012-07-20, bob.cho@lge.com
+				  * this API control HPH PAs to remove aux noise
+				  */
+				 enum tabla_hph_pa_ctl_num {
+					 TABLA_EVENT_CHARGER_CONNECT = 0,
+					 TABLA_EVENT_CHARGER_DISCONNECT,
+					 TABLA_EVENT_HEADSET_INSERT,
+					 TABLA_EVENT_HEADSET_REMOVAL,
+				 };
+				 extern void tabla_codec_hph_pa_ctl(int state);
+#endif /*CONFIG_LGE_AUX_NOISE*/
 

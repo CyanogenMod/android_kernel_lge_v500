@@ -44,6 +44,14 @@
 #endif
 #include "mipi_dsi.h"
 
+#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_HD_PT)
+#undef CONFIG_HAS_EARLYSUSPEND
+#endif
+
+#if defined (CONFIG_LGE_QC_LCDC_LUT)
+#include "lge_qlut.h"
+#endif
+
 uint32 mdp4_extn_disp;
 
 static struct clk *mdp_clk;
@@ -537,6 +545,16 @@ error:
 spinlock_t mdp_lut_push_lock;
 static int mdp_lut_i;
 
+#ifdef CONFIG_LGE_QC_LCDC_LUT
+extern int g_qlut_change_by_kernel;
+extern uint32 p_lg_qc_lcdc_lut[];
+#ifdef CONFIG_LGE_KCAL_QLUT
+extern int g_kcal_r;
+extern int g_kcal_g;
+extern int g_kcal_b;
+#endif /* CONFIG_LGE_KCAL_QLUT */
+#endif /* CONFIG_LGE_QC_LCDC_LUT */
+
 static int mdp_lut_hw_update(struct fb_cmap *cmap)
 {
 	int i;
@@ -548,10 +566,31 @@ static int mdp_lut_hw_update(struct fb_cmap *cmap)
 	c[2] = cmap->red;
 
 	for (i = 0; i < cmap->len; i++) {
+#ifdef CONFIG_LGE_QC_LCDC_LUT
+		if (g_qlut_change_by_kernel) {
+			r = ((p_lg_qc_lcdc_lut[i] & R_MASK) >> R_SHIFT);
+			g = ((p_lg_qc_lcdc_lut[i] & G_MASK) >> G_SHIFT);
+			b = ((p_lg_qc_lcdc_lut[i] & B_MASK) >> B_SHIFT);
+#ifdef CONFIG_LGE_KCAL_QLUT
+			r = scaled_by_kcal(r, g_kcal_r);
+			g = scaled_by_kcal(g, g_kcal_g);
+			b = scaled_by_kcal(b, g_kcal_b);
+#endif
+		} else
+#endif
 		if (copy_from_user(&r, cmap->red++, sizeof(r)) ||
 		    copy_from_user(&g, cmap->green++, sizeof(g)) ||
 		    copy_from_user(&b, cmap->blue++, sizeof(b)))
 			return -EFAULT;
+
+
+#ifdef CMAP_RESTORE  /*invert color*/
+		if (cmap_lut_changed) {
+			r = ~(r & 0xff);
+			g = ~(g & 0xff);
+			b = ~(b & 0xff);
+		}
+#endif
 
 #ifdef CONFIG_FB_MSM_MDP40
 		MDP_OUTP(MDP_BASE + 0x94800 +
@@ -608,7 +647,7 @@ static int mdp_lut_update_lcdc(struct fb_info *info, struct fb_cmap *cmap)
 	}
 
 	/*mask off non LUT select bits*/
-	out = inpdw(MDP_BASE + 0x90070);
+	out = inpdw(MDP_BASE + 0x90070) & ~((0x1 << 10) | 0x7);
 	MDP_OUTP(MDP_BASE + 0x90070, (mdp_lut_i << 10) | 0x7 | out);
 	mdp_clk_ctrl(0);
 	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
@@ -2404,12 +2443,6 @@ static int mdp_on(struct platform_device *pdev)
 		mfd->cont_splash_done = 1;
 	}
 
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
-
-	ret = panel_next_on(pdev);
-	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
-
-
 	if (mdp_rev >= MDP_REV_40) {
 		mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
 		mdp_clk_ctrl(1);
@@ -2437,6 +2470,11 @@ static int mdp_on(struct platform_device *pdev)
 		vsync_cntrl.dev = mfd->fbi->dev;
 		atomic_set(&vsync_cntrl.suspend, 1);
 	}
+
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_ON, FALSE);
+
+	ret = panel_next_on(pdev);
+	mdp_pipe_ctrl(MDP_CMD_BLOCK, MDP_BLOCK_POWER_OFF, FALSE);
 
 	mdp_histogram_ctrl_all(TRUE);
 
@@ -2724,6 +2762,49 @@ static int mdp_irq_clk_setup(struct platform_device *pdev,
 	}
 	return 0;
 }
+
+#ifdef CONFIG_LGE_FPS_CONTROL
+static ssize_t fps_store(struct device *dev, struct device_attribute *attr, const char *buf, size_t count)
+{
+	ulong fps;
+
+	if (!count)
+		return -EINVAL;
+
+	fps = simple_strtoul(buf, NULL, 10);
+
+	if (fps == 0 || fps >= 60) {
+		mdp4_stat.enable_skip_vsync = 0;
+		mdp4_stat.skip_value = 0;
+		mdp4_stat.weight = 0;
+		mdp4_stat.bucket = 0;
+		mdp4_stat.skip_count = 0;
+		pr_info("Disable frame skip.\n");
+	} else {
+		mdp4_stat.enable_skip_vsync = 1;
+		mdp4_stat.skip_value = (60<<16)/fps;
+		mdp4_stat.weight = (1<<16);
+		mdp4_stat.bucket = 0;
+		pr_info("Enable frame skip: Set to %lu fps.\n", fps);
+	}
+
+	return count;
+}
+
+static ssize_t fps_show(struct device *dev, struct device_attribute *attr, char *buf)
+{
+	int r = 0;
+	r = snprintf(buf, PAGE_SIZE, "enable_skip_vsync=%d\nweight=%lu\nskip_value=%lu\nbucket=%lu\nskip_count=%lu\n",
+		mdp4_stat.enable_skip_vsync,
+		mdp4_stat.weight,
+		mdp4_stat.skip_value,
+		mdp4_stat.bucket,
+		mdp4_stat.skip_count);
+	return r;
+}
+
+DEVICE_ATTR(fps, 0644, fps_show, fps_store);
+#endif
 
 static int mdp_probe(struct platform_device *pdev)
 {
@@ -3228,6 +3309,16 @@ static int mdp_probe(struct platform_device *pdev)
 			mfd->vsync_sysfs_created = 1;
 		}
 	}
+
+#ifdef CONFIG_LGE_FPS_CONTROL
+	if (mfd->panel_info.pdest == DISPLAY_1) {
+		rc = device_create_file(mfd->fbi->dev, &dev_attr_fps);
+		if(rc < 0)
+			printk("%s : Cannot create the sysfs\n" , __func__);
+	}
+
+#endif
+
 	return 0;
 
       mdp_probe_err:

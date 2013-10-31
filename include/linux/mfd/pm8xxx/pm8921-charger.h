@@ -163,8 +163,16 @@ struct pm8921_charger_platform_data {
 	unsigned int			usb_max_current;
 	unsigned int			cool_bat_chg_current;
 	unsigned int			warm_bat_chg_current;
+#ifdef CONFIG_LGE_CHARGER_TEMP_SCENARIO
+	int						temp_level_1;
+	int						temp_level_2;
+	int						temp_level_3;
+	int						temp_level_4;
+	int						temp_level_5;
+#endif
 	unsigned int			cool_bat_voltage;
 	unsigned int			warm_bat_voltage;
+	int				hysteresis_temp;
 	unsigned int			(*get_batt_capacity_percent) (void);
 	int64_t				batt_id_min;
 	int64_t				batt_id_max;
@@ -195,7 +203,21 @@ enum pm8921_charger_source {
 	PM8921_CHG_SRC_NONE,
 	PM8921_CHG_SRC_USB,
 	PM8921_CHG_SRC_DC,
+#ifdef CONFIG_WIRELESS_CHARGER
+	PM8921_CHG_SRC_WIRELESS,
+#endif
 };
+
+/**
+ * pm8921_charger_enable -
+ *
+ * @enable: 1 means enable charging, 0 means disable
+ *
+ * Enable/Disable battery charging current, the device will still draw current
+ * from the charging source
+ */
+int pm8921_charger_enable(bool enable);
+void pm8921_charger_force_update_batt_psy(void);
 
 #if defined(CONFIG_PM8921_CHARGER) || defined(CONFIG_PM8921_CHARGER_MODULE)
 void pm8921_charger_vbus_draw(unsigned int mA);
@@ -222,6 +244,12 @@ int pm8921_is_dc_chg_plugged_in(void);
  * returns if the pmic sees the battery present
  */
 int pm8921_is_battery_present(void);
+#ifdef CONFIG_LGE_PM
+/*LGE_S jungwoo.yun@lge.com 2012-08-07 check battery preset regardless of factory cable*/
+int pm8921_is_real_battery_present(void);
+/*LGE_E jungwoo.yun@lge.com 2012-08-07 check battery preset regardless of factory cable*/
+int pm8921_chg_get_fsm_state(void);
+#endif
 
 /**
  * pm8921_set_max_battery_charge_current - set max battery chg current
@@ -315,6 +343,15 @@ int pm8921_usb_ovp_disable(int disable);
  * batfet this will return 0.
  */
 int pm8921_is_batfet_closed(void);
+
+/* LGE_CHANGE_E 2012-09-22 */
+int pm8921_chg_batfet_set_ext(int on);
+int pm8921_chg_batfet_get_ext(void);
+/* LGE_CHANGE_E 2012-09-22 */
+
+#ifdef CONFIG_WIRELESS_CHARGER
+int set_wireless_power_supply_control(int value);
+#endif
 #else
 static inline void pm8921_charger_vbus_draw(unsigned int mA)
 {
@@ -371,6 +408,11 @@ static inline int pm8921_batt_temperature(void)
 {
 	return -ENXIO;
 }
+#if defined(CONFIG_BATTERY_MAX17043) || defined(CONFIG_BATTERY_MAX17048)
+static inline void pm8921_charger_force_update_batt_psy(void)
+{
+}
+#endif
 static inline int pm8921_usb_ovp_set_threshold(enum pm8921_usb_ov_threshold ov)
 {
 	return -ENXIO;

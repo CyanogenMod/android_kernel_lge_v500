@@ -46,10 +46,32 @@
 #define MODE_CMD		41
 #define RESET_ID		2
 
+//2012-03-06 seongmook.yim(seongmook.yim@lge.com) [P6/MDMBSP] ADD LGODL [START]
+#ifdef CONFIG_LGE_DM_DEV
+#include "lg_dm_dev_tty.h"
+#endif /*CONFIG_LGE_DM_DEV*/
+//2012-03-06 seongmook.yim(seongmook.yim@lge.com) [P6/MDMBSP] ADD LGODL [END]
+#ifdef CONFIG_LGE_DM_APP
+#include "lg_dm_tty.h"
+#endif
+
 int diag_debug_buf_idx;
 unsigned char diag_debug_buf[1024];
 static unsigned int buf_tbl_size = 8; /*Number of entries in table of buffers */
 struct diag_master_table entry;
+#ifdef CONFIG_LGE_USB_DIAG_DISABLE
+#include "diag_lock.h"
+#ifdef CONFIG_LGE_USB_DIAG_DISABLE_ONLY_MDM
+static int diag_enable = DIAG_ENABLE;
+#else
+static int diag_enable = DIAG_DISABLE;
+#endif
+void diagfwd_enable(int enable)
+{
+    diag_enable = enable;
+}
+EXPORT_SYMBOL(diagfwd_enable);
+#endif
 struct diag_send_desc_type send = { NULL, NULL, DIAG_STATE_START, 0 };
 struct diag_hdlc_dest_type enc = { NULL, NULL, 0 };
 int wrap_enabled;
@@ -475,8 +497,8 @@ int diag_device_write(void *buf, int data_type, struct diag_request *write_ptr)
 #ifdef DIAG_DEBUG
 					pr_debug("diag: ENQUEUE buf ptr"
 						   " and length is %x , %d\n",
-						   (unsigned int)(driver->buf_
-				tbl[i].buf), driver->buf_tbl[i].length);
+						   (unsigned int)(driver->buf_tbl[i].buf),
+						   driver->buf_tbl[i].length);
 #endif
 					break;
 				}
@@ -632,6 +654,114 @@ int diag_device_write(void *buf, int data_type, struct diag_request *write_ptr)
 		APPEND_DEBUG('d');
 	}
 #endif /* DIAG OVER USB */
+
+//2012-03-06 seongmook.yim(seongmook.yim@lge.com) [P6/MDMBSP] ADD LGODL [START]
+#ifdef CONFIG_LGE_DM_DEV
+		if (driver->logging_mode == DM_DEV_MODE) {
+			/* only diag cmd #250 for supporting testmode tool */
+			if (data_type == APPS_DATA) {
+				driver->write_ptr_svc = (struct diag_request *)
+				(diagmem_alloc(driver, sizeof(struct diag_request),
+					 POOL_TYPE_WRITE_STRUCT));
+				if (driver->write_ptr_svc) {
+					driver->write_ptr_svc->length = driver->used;
+					driver->write_ptr_svc->buf = buf;
+					queue_work(lge_dm_dev_tty->dm_dev_wq,
+						&(lge_dm_dev_tty->dm_dev_usb_work));
+					flush_work(&(lge_dm_dev_tty->dm_dev_usb_work));
+	
+				} else {
+					err = -1;
+				}
+				return err;
+			}
+#ifdef CONFIG_DIAGFWD_BRIDGE_CODE
+		else if (data_type == HSIC_DATA) {
+			unsigned long flags;
+			int foundIndex = -1;
+			spin_lock_irqsave(&diag_hsic[index].hsic_spinlock,flags);
+			for (i = 0; i < diag_hsic[index].poolsize_hsic_write; i++) {
+				if (diag_hsic[index].hsic_buf_tbl[i].length == 0) {
+					diag_hsic[index].hsic_buf_tbl[i].buf = buf;
+					diag_hsic[index].hsic_buf_tbl[i].length = diag_bridge[index].write_len;
+					diag_hsic[index].num_hsic_buf_tbl_entries++;
+					foundIndex = i;
+					break;
+				}
+			}
+			spin_unlock_irqrestore(&diag_hsic[index].hsic_spinlock,flags);
+			if (foundIndex == -1)
+				err = -1;
+			else
+			{
+				pr_info("diag: ENQUEUE HSIC buf ptr and length is %x , %d\n",
+					(unsigned int)buf,
+					diag_bridge[index].write_len);
+			}
+			}
+#endif /*CONFIG_DIAGFWD_BRIDGE_CODE*/
+		
+		lge_dm_dev_tty->set_logging = 1;
+		wake_up_interruptible(&lge_dm_dev_tty->waitq);
+
+	}
+#endif /*CONFIG_LGE_DM_DEV*/
+//2012-03-06 seongmook.yim(seongmook.yim@lge.com) [P6/MDMBSP] ADD LGODL [END]
+
+#ifdef CONFIG_LGE_DM_APP
+	if (driver->logging_mode == DM_APP_MODE) {
+		/* only diag cmd #250 for supporting testmode tool */
+		if (data_type == APPS_DATA) {
+			driver->write_ptr_svc = (struct diag_request *)
+			(diagmem_alloc(driver, sizeof(struct diag_request),
+				 POOL_TYPE_WRITE_STRUCT));
+			if (driver->write_ptr_svc) {
+				driver->write_ptr_svc->length = driver->used;
+				driver->write_ptr_svc->buf = buf;
+
+				queue_work(lge_dm_tty->dm_wq,
+					&(lge_dm_tty->dm_usb_work));
+				flush_work(&(lge_dm_tty->dm_usb_work));
+
+			} else {
+				err = -1;
+			}
+
+			return err;
+
+		}
+#ifdef CONFIG_DIAGFWD_BRIDGE_CODE
+		else if (data_type == HSIC_DATA) {
+			unsigned long flags;
+			int foundIndex = -1;
+
+			spin_lock_irqsave(&diag_hsic[index].hsic_spinlock,flags);
+			for (i = 0; i < diag_hsic[index].poolsize_hsic_write; i++) {
+				if (diag_hsic[index].hsic_buf_tbl[i].length == 0) {
+					diag_hsic[index].hsic_buf_tbl[i].buf = buf;
+					diag_hsic[index].hsic_buf_tbl[i].length = diag_bridge[index].write_len;
+					diag_hsic[index].num_hsic_buf_tbl_entries++;
+					foundIndex = i;
+					break;
+				}
+			}
+			spin_unlock_irqrestore(&diag_hsic[index].hsic_spinlock,flags);
+			if (foundIndex == -1)
+				err = -1;
+			else
+			{
+				pr_info("diag: ENQUEUE HSIC buf ptr and length is %x , %d\n",
+					(unsigned int)buf,
+					diag_bridge[index].write_len);
+			}
+		}
+#endif  /*CONFIG_DIAGFWD_BRIDGE_CODE*/
+
+		lge_dm_tty->set_logging = 1;
+		wake_up_interruptible(&lge_dm_tty->waitq);
+
+	}
+#endif /*CONFIG_LGE_DM_APP */
     return err;
 }
 
@@ -678,9 +808,17 @@ void diag_update_sleeping_process(int process_id, int data_type)
 static int diag_check_mode_reset(unsigned char *buf)
 {
 	int is_mode_reset = 0;
+
+#ifndef CONFIG_MACH_APQ8064_AWIFI
 	if (chk_apps_master() && (int)(*(char *)buf) == MODE_CMD)
 		if ((int)(*(char *)(buf+1)) == RESET_ID)
 			is_mode_reset = 1;
+#else		// [AWIFI] Without modem configuration,  2013-07-09, Kyungtaeg.kim@lge.com
+	if (chk_apps_master() && (int)(*(char *)buf) == MODE_CMD){
+
+		is_mode_reset = 1;
+	}
+#endif
 	return is_mode_reset;
 }
 
@@ -731,6 +869,11 @@ int diag_process_apps_pkt(unsigned char *buf, int len)
 	unsigned char *ptr;
 #endif
 
+#ifdef CONFIG_LGE_USB_DIAG_DISABLE
+    /* 0xA1(161) is portlock command */
+	if (buf[0] != 0xA1 && diag_enable == 0)
+		return 0;
+#endif
 	/* Check if the command is a supported mask command */
 	mask_ret = diag_process_apps_masks(buf, len);
 	if (mask_ret <= 0)
@@ -745,11 +888,13 @@ int diag_process_apps_pkt(unsigned char *buf, int len)
 	temp += 2;
 	data_type = APPS_DATA;
 	/* Dont send any command other than mode reset */
+/*	2012/10/05  bk.choi@lge.com ======== For sending RESET CMD to ATD in FRST 20121005 
+
 	if (chk_apps_master() && cmd_code == MODE_CMD) {
 		if (subsys_id != RESET_ID)
 			data_type = MODEM_DATA;
 	}
-
+*/
 	pr_debug("diag: %d %d %d", cmd_code, subsys_id, subsys_cmd_code);
 	for (i = 0; i < diag_max_reg; i++) {
 		entry = driver->table[i];
@@ -1050,6 +1195,8 @@ int diag_process_apps_pkt(unsigned char *buf, int len)
 	 /* Check for ID for NO MODEM present */
 	else if (chk_polling_response()) {
 		/* respond to 0x0 command */
+		//LGE_CHANGE_S, dong.kim@lge.com 20120414 VERNO cmd redefine
+		#if 0
 		if (*buf == 0x00) {
 			for (i = 0; i < 55; i++)
 				driver->apps_rsp_buf[i] = 0;
@@ -1059,6 +1206,10 @@ int diag_process_apps_pkt(unsigned char *buf, int len)
 		}
 		/* respond to 0x7c command */
 		else if (*buf == 0x7c) {
+		#endif
+		/* respond to 0x7c command */
+		if (*buf == 0x7c) {
+		//LGE_CHANGE_E
 			driver->apps_rsp_buf[0] = 0x7c;
 			for (i = 1; i < 8; i++)
 				driver->apps_rsp_buf[i] = 0;
@@ -1164,9 +1315,13 @@ void diag_process_hdlc(void *data, unsigned len)
 
 #ifdef DIAG_DEBUG
 	pr_debug("diag: hdlc.dest_idx = %d", hdlc.dest_idx);
+#ifdef CONFIG_USB_G_LGE_ANDROID
+    print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16, 1, driver->hdlc_buf, hdlc.dest_idx, 1);
+#else
 	for (i = 0; i < hdlc.dest_idx; i++)
 		printk(KERN_DEBUG "\t%x", *(((unsigned char *)
 							driver->hdlc_buf)+i));
+#endif /* CONFIG_USB_G_LGE_ANDROID */
 #endif /* DIAG DEBUG */
 	/* ignore 2 bytes for CRC, one for 7E and send */
 	if ((driver->smd_data[MODEM_DATA].ch) && (ret) && (type) &&
@@ -1750,6 +1905,11 @@ void diagfwd_init(void)
 		goto err;
 	}
 #endif
+#ifdef CONFIG_USB_G_LGE_ANDROID_DIAG_OSP_SUPPORT
+	driver->diag_read_status = 1;
+	init_waitqueue_head(&driver->diag_read_wait_q);
+#endif
+
 	platform_driver_register(&msm_smd_ch1_driver);
 	platform_driver_register(&diag_smd_lite_driver);
 	return;

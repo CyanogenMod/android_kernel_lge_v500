@@ -135,7 +135,6 @@
 #define VFE_CMD_EPOCH2_ACK                              58
 #define VFE_CMD_START_RECORDING                         59
 #define VFE_CMD_STOP_RECORDING                          60
-#define VFE_CMD_DUMMY_5                                 61
 #define VFE_CMD_DUMMY_6                                 62
 #define VFE_CMD_CAPTURE                                 63
 #define VFE_CMD_DUMMY_7                                 64
@@ -241,6 +240,7 @@
 #define VFE_CMD_SET_STATS_VER                           164
 #define VFE_CMD_RGB_ALL_CFG                             165
 #define VFE_CMD_RGB_ALL_UPDATE                          166
+#define VFE_CMD_STOP_RECORDING_DONE                     167
 
 struct msm_isp_cmd {
 	int32_t  id;

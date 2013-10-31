@@ -3,7 +3,7 @@
  * MSM 7k High speed uart driver
  *
  * Copyright (c) 2008 Google Inc.
- * Copyright (c) 2007-2013, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2007-2012, Code Aurora Forum. All rights reserved.
  * Modified: Nick Pelly <npelly@google.com>
  *
  * All source code in this file is licensed under the following license
@@ -404,6 +404,12 @@ static int __devexit msm_hs_remove(struct platform_device *pdev)
 
 	struct msm_hs_port *msm_uport;
 	struct device *dev;
+/*
+QCT 161032 migration
+the structure of msm_serial_hs_platform_data was changed
+NEED TO CHECK
+	struct msm_serial_hs_platform_data *pdata = pdev->dev.platform_data;
+*/
 
 	if (pdev->id < 0 || pdev->id >= UARTDM_NR) {
 		printk(KERN_ERR "Invalid plaform device ID = %d\n", pdev->id);
@@ -413,6 +419,14 @@ static int __devexit msm_hs_remove(struct platform_device *pdev)
 	msm_uport = &q_uart_port[pdev->id];
 	dev = msm_uport->uport.dev;
 
+/*
+QCT 161032 migration
+the structure of msm_serial_hs_platform_data was changed
+NEED TO CHECK
+	if (pdata && pdata->gpio_config)
+		if (pdata->gpio_config(0))
+			dev_err(dev, "GPIO config error\n");
+*/
 	sysfs_remove_file(&pdev->dev.kobj, &dev_attr_clock.attr);
 	debugfs_remove(msm_uport->loopback_dir);
 
@@ -895,8 +909,6 @@ static void msm_hs_set_termios(struct uart_port *uport,
 
 	uport->ignore_status_mask = termios->c_iflag & INPCK;
 	uport->ignore_status_mask |= termios->c_iflag & IGNPAR;
-	uport->ignore_status_mask |= termios->c_iflag & IGNBRK;
-
 	uport->read_status_mask = (termios->c_cflag & CREAD);
 
 	msm_hs_write(uport, UARTDM_IMR_ADDR, 0);
@@ -954,6 +966,47 @@ unsigned int msm_hs_tx_empty(struct uart_port *uport)
 }
 EXPORT_SYMBOL(msm_hs_tx_empty);
 
+//LG_BTUI : chanha.park@lge.com : Added bluesleep interface - [S]
+#ifdef CONFIG_LGE_BLUESLEEP
+struct uart_port* msm_hs_get_bt_uport(unsigned int line)
+{
+     return &q_uart_port[line].uport;
+}
+EXPORT_SYMBOL(msm_hs_get_bt_uport);
+
+// Get UART Clock State : 
+int msm_hs_get_bt_uport_clock_state(struct uart_port *uport)
+{
+	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
+	//unsigned long flags;	
+	int ret = CLOCK_REQUEST_UNAVAILABLE;
+
+	//mutex_lock(&msm_uport->clk_mutex);
+	//spin_lock_irqsave(&uport->lock, flags);
+
+	switch(msm_uport->clk_state)
+	{
+		case MSM_HS_CLK_ON:
+		case MSM_HS_CLK_PORT_OFF:
+			printk(KERN_ERR "UART Clock already on or port not use : %d\n", msm_uport->clk_state);
+			ret = CLOCK_REQUEST_UNAVAILABLE;
+			break;
+		case MSM_HS_CLK_REQUEST_OFF:
+		case MSM_HS_CLK_OFF:
+			printk(KERN_ERR "Uart clock off. Please clock on : %d\n", msm_uport->clk_state);
+			ret = CLOCK_REQUEST_AVAILABLE;
+			break;
+	}
+
+	//spin_unlock_irqrestore(&uport->lock, flags);
+	//mutex_unlock(&msm_uport->clk_mutex);
+
+	return ret;
+}
+EXPORT_SYMBOL(msm_hs_get_bt_uport_clock_state);
+#endif/*CONFIG_LGE_BLUESLEEP*/
+//LG_BTUI : chanha.park@lge.com : Added bluesleep interface - [E]
+
 /*
  *  Standard API, Stop transmitter.
  *  Any character in the transmit shift register is sent as
@@ -978,6 +1031,18 @@ static void msm_hs_stop_rx_locked(struct uart_port *uport)
 {
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
 	unsigned int data;
+
+//[LG_BTUI] Add to prevent HW reset (apply Qualcomm patch relased from US780) [s]
+	if (msm_uport->clk_state == MSM_HS_CLK_OFF) {
+			spin_unlock(&uport->lock);
+			clk_prepare_enable(msm_uport->clk);
+			
+	if (msm_uport->pclk)
+			clk_prepare_enable(msm_uport->pclk);
+			
+			spin_lock(&uport->lock);
+	}
+//[minwoo2.kim@lge.com, 2013/04/22][e]
 
 	/* disable dlink */
 	data = msm_hs_read(uport, UARTDM_DMEN_ADDR);
@@ -1185,26 +1250,12 @@ static void msm_serial_hs_rx_tlet(unsigned long tlet_ptr)
 
 	if (unlikely(status & UARTDM_SR_PAR_FRAME_BMSK)) {
 		/* Can not tell difference between parity & frame error */
-		if (hs_serial_debug_mask)
-			printk(KERN_WARNING "msm_serial_hs: parity error\n");
 		uport->icount.parity++;
 		error_f = 1;
-		if (!(uport->ignore_status_mask & IGNPAR)) {
+		if (uport->ignore_status_mask & IGNPAR) {
 			retval = tty_insert_flip_char(tty, 0, TTY_PARITY);
 			if (!retval)
 				msm_uport->rx.buffer_pending |= TTY_PARITY;
-		}
-	}
-
-	if (unlikely(status & UARTDM_SR_RX_BREAK_BMSK)) {
-		if (hs_serial_debug_mask)
-			printk(KERN_WARNING "msm_serial_hs: Rx break\n");
-		uport->icount.brk++;
-		error_f = 1;
-		if (!(uport->ignore_status_mask & IGNBRK)) {
-			retval = tty_insert_flip_char(tty, 0, TTY_BREAK);
-			if (!retval)
-				msm_uport->rx.buffer_pending |= TTY_BREAK;
 		}
 	}
 
@@ -1428,6 +1479,7 @@ static void msm_hs_enable_ms_locked(struct uart_port *uport)
 
 }
 
+#if 0 //FIXME
 static void msm_hs_flush_buffer_locked(struct uart_port *uport)
 {
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
@@ -1435,6 +1487,7 @@ static void msm_hs_flush_buffer_locked(struct uart_port *uport)
 	if (msm_uport->tx.dma_in_flight)
 		msm_uport->tty_flush_receive = true;
 }
+#endif
 
 /*
  *  Standard API, Break Signal
@@ -1665,14 +1718,7 @@ static irqreturn_t msm_hs_isr(int irq, void *dev)
 		 */
 		mb();
 		/* Complete DMA TX transactions and submit new transactions */
-
-		/* Do not update tx_buf.tail if uart_flush_buffer already
-						called in serial core */
-		if (!msm_uport->tty_flush_receive)
-			tx_buf->tail = (tx_buf->tail +
-					tx->tx_count) & ~UART_XMIT_SIZE;
-		else
-			msm_uport->tty_flush_receive = false;
+		tx_buf->tail = (tx_buf->tail + tx->tx_count) & ~UART_XMIT_SIZE;
 
 		tx->dma_in_flight = 0;
 
@@ -1838,11 +1884,11 @@ static int msm_hs_startup(struct uart_port *uport)
 	unsigned long flags;
 	unsigned int data;
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
-	struct platform_device *pdev = to_platform_device(uport->dev);
-	const struct msm_serial_hs_platform_data *pdata =
-					pdev->dev.platform_data;
 	struct circ_buf *tx_buf = &uport->state->xmit;
 	struct msm_hs_tx *tx = &msm_uport->tx;
+	struct platform_device *pdev = to_platform_device(uport->dev);
+        const struct msm_serial_hs_platform_data *pdata =
+                                         pdev->dev.platform_data;
 
 	rfr_level = uport->fifosize;
 	if (rfr_level > 16)
@@ -2150,7 +2196,15 @@ static int __devinit msm_hs_probe(struct platform_device *pdev)
 
 		if (unlikely(msm_uport->wakeup.irq < 0))
 			return -ENXIO;
-
+/*
+QCT 161032 migration
+the structure of msm_serial_hs_platform_data was changed
+NEED TO CHECK
+		if (pdata->gpio_config)
+			if (unlikely(pdata->gpio_config(1)))
+				dev_err(uport->dev, "Cannot configure"
+					"gpios\n");
+*/
 	}
 
 	/* Identify UART functional mode as 2-wire or 4-wire. */
@@ -2322,7 +2376,7 @@ static void msm_hs_shutdown(struct uart_port *uport)
 	struct msm_hs_port *msm_uport = UARTDM_TO_MSM(uport);
 	struct platform_device *pdev = to_platform_device(uport->dev);
 	const struct msm_serial_hs_platform_data *pdata =
-				pdev->dev.platform_data;
+                             pdev->dev.platform_data;
 
 	if (msm_uport->tx.dma_in_flight) {
 		spin_lock_irqsave(&uport->lock, flags);
@@ -2464,7 +2518,9 @@ static struct uart_ops msm_hs_ops = {
 	.config_port = msm_hs_config_port,
 	.release_port = msm_hs_release_port,
 	.request_port = msm_hs_request_port,
+#if 0 //FIMXE
 	.flush_buffer = msm_hs_flush_buffer_locked,
+#endif
 };
 
 module_init(msm_serial_hs_init);

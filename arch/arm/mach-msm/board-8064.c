@@ -1796,6 +1796,7 @@ static struct mdm_platform_data mdm_platform_data = {
 	.ramdump_delay_ms = 2000,
 	.early_power_on = 1,
 	.sfr_query = 1,
+	.send_shdn = 1,
 	.vddmin_resource = &mdm_vddmin_rscs,
 	.peripheral_platform_device = &apq8064_device_hsic_host,
 	.ramdump_timeout_ms = 120000,
@@ -3329,7 +3330,7 @@ static void __init apq8064_common_init(void)
 			platform_device_register(&sglte2_qsc_8064_device);
 
 			/* GSBI4 UART device for Primay IPC */
-			apq8064_uartdm_gsbi4_pdata.wakeup_irq = gpio_to_irq(11);
+			apq8064_uartdm_gsbi4_pdata.wakeup_irq = gpio_to_irq(10);
 			apq8064_device_uartdm_gsbi4.dev.platform_data =
 						&apq8064_uartdm_gsbi4_pdata;
 			platform_device_register(&apq8064_device_uartdm_gsbi4);

@@ -1188,6 +1188,13 @@ menuconfig MSM_CAMERA
 	  Say Y here to enable selecting the video adapters for
 	  Qualcomm msm camera and video encoding
 
+config LGE_GK_CAMERA
+	bool "LGE GK/GV camera support"
+	depends on MSM_CAMERA
+	default n
+	help
+	  Use GK camera feature
+
 config MSM_CAMERA_DEBUG
 	bool "Qualcomm MSM camera debugging with printk"
 	depends on MSM_CAMERA

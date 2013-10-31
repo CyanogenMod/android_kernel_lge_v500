@@ -28,7 +28,6 @@
 #include <linux/miscdevice.h>
 
 #define ADB_BULK_BUFFER_SIZE           4096
-#define DEBUG 1
 /* number of tx requests to allocate */
 #define TX_REQ_MAX 4
 
@@ -161,7 +160,8 @@ static inline int adb_lock(atomic_t *excl)
 
 static inline void adb_unlock(atomic_t *excl)
 {
-	atomic_dec(excl);
+	if (atomic_dec_return(excl) < 0)
+		atomic_inc(excl);
 }
 
 /* add a request to the tail of a list */
@@ -274,7 +274,9 @@ static ssize_t adb_read(struct file *fp, char __user *buf,
 	int r = count, xfer;
 	int ret;
 
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	pr_debug("adb_read(%d)\n", count);
+#endif
 	if (!_adb_dev)
 		return -ENODEV;
 
@@ -303,7 +305,7 @@ static ssize_t adb_read(struct file *fp, char __user *buf,
 requeue_req:
 	/* queue a request */
 	req = dev->rx_req;
-	req->length = count;
+	req->length = ADB_BULK_BUFFER_SIZE;
 	dev->rx_done = 0;
 	ret = usb_ep_queue(dev->ep_out, req, GFP_ATOMIC);
 	if (ret < 0) {
@@ -312,7 +314,9 @@ requeue_req:
 		atomic_set(&dev->error, 1);
 		goto done;
 	} else {
+#ifndef CONFIG_USB_G_LGE_ANDROID
 		pr_debug("rx %p queue\n", req);
+#endif
 	}
 
 	/* wait for a request to complete */
@@ -330,7 +334,9 @@ requeue_req:
 		if (req->actual == 0)
 			goto requeue_req;
 
+#ifndef CONFIG_USB_G_LGE_ANDROID
 		pr_debug("rx %p %d\n", req, req->actual);
+#endif
 		xfer = (req->actual < count) ? req->actual : count;
 		if (copy_to_user(buf, req->buf, xfer))
 			r = -EFAULT;
@@ -343,7 +349,9 @@ done:
 		wake_up(&dev->write_wq);
 
 	adb_unlock(&dev->read_excl);
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	pr_debug("adb_read returning %d\n", r);
+#endif
 	return r;
 }
 
@@ -357,7 +365,9 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 
 	if (!_adb_dev)
 		return -ENODEV;
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	pr_debug("adb_write(%d)\n", count);
+#endif
 
 	if (adb_lock(&dev->write_excl))
 		return -EBUSY;
@@ -414,7 +424,9 @@ static ssize_t adb_write(struct file *fp, const char __user *buf,
 		wake_up(&dev->read_wq);
 
 	adb_unlock(&dev->write_excl);
+#ifndef CONFIG_USB_G_LGE_ANDROID
 	pr_debug("adb_write returning %d\n", r);
+#endif
 	return r;
 }
 

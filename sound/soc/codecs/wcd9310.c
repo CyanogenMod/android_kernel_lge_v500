@@ -469,6 +469,7 @@ static unsigned short tx_digital_gain_reg[] = {
 	TABLA_A_CDC_TX10_VOL_CTL_GAIN,
 };
 
+struct snd_soc_codec *snd_codec = NULL;
 static int tabla_codec_enable_charge_pump(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
 {
@@ -916,7 +917,7 @@ static int tabla_get_compander(struct snd_kcontrol *kcontrol,
 
 	struct snd_soc_codec *codec = snd_kcontrol_chip(kcontrol);
 	int comp = ((struct soc_multi_mixer_control *)
-					kcontrol->private_value)->max;
+					kcontrol->private_value)->shift; //LGE_CHANGE 20130806 keunhui.park [Audio] enable DRE
 	struct tabla_priv *tabla = snd_soc_codec_get_drvdata(codec);
 
 	ucontrol->value.integer.value[0] = tabla->comp_enabled[comp];
@@ -1188,6 +1189,46 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 	SOC_SINGLE_TLV("HPHR Volume", TABLA_A_RX_HPH_R_GAIN, 0, 12, 1,
 		line_gain),
 
+/* LGE_CHANGED_START 2012.05.03, sehwan.lee@lge.com
+ * change the digital_gain's Min value -84 -> -60, because UCM off-line tunning Issue
+ */ 
+#if defined(CONFIG_LGE_AUDIO) || defined(CONFIG_MACH_APQ8064_AWIFI) /* LGE_CODE */
+	SOC_SINGLE_S8_TLV("RX1 Digital Volume", TABLA_A_CDC_RX1_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX2 Digital Volume", TABLA_A_CDC_RX2_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX3 Digital Volume", TABLA_A_CDC_RX3_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX4 Digital Volume", TABLA_A_CDC_RX4_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX5 Digital Volume", TABLA_A_CDC_RX5_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX6 Digital Volume", TABLA_A_CDC_RX6_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX7 Digital Volume", TABLA_A_CDC_RX7_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+
+	SOC_SINGLE_S8_TLV("DEC1 Volume", TABLA_A_CDC_TX1_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC2 Volume", TABLA_A_CDC_TX2_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC3 Volume", TABLA_A_CDC_TX3_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC4 Volume", TABLA_A_CDC_TX4_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC5 Volume", TABLA_A_CDC_TX5_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC6 Volume", TABLA_A_CDC_TX6_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC7 Volume", TABLA_A_CDC_TX7_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC8 Volume", TABLA_A_CDC_TX8_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC9 Volume", TABLA_A_CDC_TX9_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC10 Volume", TABLA_A_CDC_TX10_VOL_CTL_GAIN, -60,
+		40, digital_gain),
+#else /* qualcomm original code */
 	SOC_SINGLE_S8_TLV("RX1 Digital Volume", TABLA_A_CDC_RX1_VOL_CTL_B2_CTL,
 		-84, 40, digital_gain),
 	SOC_SINGLE_S8_TLV("RX2 Digital Volume", TABLA_A_CDC_RX2_VOL_CTL_B2_CTL,
@@ -1223,6 +1264,8 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 		digital_gain),
 	SOC_SINGLE_S8_TLV("DEC10 Volume", TABLA_A_CDC_TX10_VOL_CTL_GAIN, -84,
 		40, digital_gain),
+#endif
+/* LGE_CHANGED_END 2012.05.03, sehwan.lee@lge.com */
 	SOC_SINGLE_S8_TLV("IIR1 INP1 Volume", TABLA_A_CDC_IIR1_GAIN_B1_CTL, -84,
 		40, digital_gain),
 	SOC_SINGLE_S8_TLV("IIR1 INP2 Volume", TABLA_A_CDC_IIR1_GAIN_B2_CTL, -84,
@@ -3600,7 +3643,9 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"RX2 MIX1", NULL, "COMP1_CLK"},
 	{"RX3 MIX1", NULL, "COMP2_CLK"},
 	{"RX5 MIX1", NULL, "COMP2_CLK"},
-
+#if defined(CONFIG_ANDROID_SW_IRRC)
+	{"RX7 MIX1", NULL, "COMP2_CLK"},
+#endif
 
 	{"RX1 MIX1", NULL, "RX1 MIX1 INP1"},
 	{"RX1 MIX1", NULL, "RX1 MIX1 INP2"},
@@ -3928,6 +3973,11 @@ static const struct snd_soc_dapm_route tabla_2_x_lineout_2_to_4_map[] = {
 	{"RX6 DSM MUX", "CIC_OUT", "RX6 MIX1"},
 
 	{"LINEOUT4 DAC", NULL, "RX6 DSM MUX"},
+
+#ifdef CONFIG_ANDROID_SW_IRRC
+	{"LINEOUT5 DAC", NULL, "RX7 MIX1"},
+#endif
+
 };
 
 static int tabla_readable(struct snd_soc_codec *ssc, unsigned int reg)
@@ -4134,6 +4184,86 @@ static void tabla_codec_calibrate_hs_polling(struct snd_soc_codec *codec)
 		      n_cic[tabla_codec_mclk_index(tabla)]);
 }
 
+#ifdef CONFIG_LGE_AUX_NOISE
+/*
+ * 2012-07-20, bob.cho@lge.com
+ * this API control HPH PAs to remove aux noise
+ */
+ static int is_force_enable_pin = 0;
+ void tabla_codec_hph_pa_ctl(int state)
+{
+	static int headphone_inuse = 0;
+	static int usbcharge_state = 0;
+	struct snd_soc_codec *codec = NULL;
+	if (snd_codec == NULL) {
+		pr_err("%s, Failed to init tabla codec\n", __func__);
+		return;
+	}
+
+	codec = snd_codec;
+	pr_debug("%s, enable : %d\n", __func__ , state);
+
+	switch (state)
+	{
+		case TABLA_EVENT_CHARGER_CONNECT :
+			if (headphone_inuse && !is_force_enable_pin) {
+				mutex_lock(&codec->mutex);
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "HPHL");
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "HPHR");
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "CP");
+				snd_soc_dapm_sync(&codec->dapm);
+				is_force_enable_pin = 1;
+				mutex_unlock(&codec->mutex);
+				pr_debug("%s, hph pa is force enable \n", __func__ );
+			}
+			usbcharge_state = 1;
+			break;
+		case TABLA_EVENT_CHARGER_DISCONNECT :
+			if (is_force_enable_pin) {
+				mutex_lock(&codec->mutex);
+				snd_soc_dapm_disable_pin(&codec->dapm, "HPHL");
+				snd_soc_dapm_disable_pin(&codec->dapm, "HPHR");
+				snd_soc_dapm_disable_pin(&codec->dapm, "CP");
+				snd_soc_dapm_sync(&codec->dapm);
+				is_force_enable_pin = 0;
+				mutex_unlock(&codec->mutex);
+				pr_debug("%s, hph pa is disable \n", __func__ );
+			}
+			usbcharge_state = 0;
+			break;
+		case TABLA_EVENT_HEADSET_INSERT :
+			if (usbcharge_state && !is_force_enable_pin) {
+				mutex_lock(&codec->mutex);
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "HPHL");
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "HPHR");
+				snd_soc_dapm_force_enable_pin(&codec->dapm, "CP");
+				snd_soc_dapm_sync(&codec->dapm);
+				is_force_enable_pin = 1;
+				mutex_unlock(&codec->mutex);
+				pr_debug("%s, hph pa is force enable \n", __func__ );
+			}
+			headphone_inuse = 1;
+			break;
+		case TABLA_EVENT_HEADSET_REMOVAL :
+			if (is_force_enable_pin) {
+				mutex_lock(&codec->mutex);
+				snd_soc_dapm_disable_pin(&codec->dapm, "HPHL");
+				snd_soc_dapm_disable_pin(&codec->dapm, "HPHR");
+				snd_soc_dapm_disable_pin(&codec->dapm, "CP");
+				snd_soc_dapm_sync(&codec->dapm);
+				is_force_enable_pin = 0;
+				mutex_unlock(&codec->mutex);
+				pr_debug("%s, hph pa is disable \n", __func__ );
+			}
+			headphone_inuse = 0;
+			break;
+	}
+}
+
+EXPORT_SYMBOL_GPL(tabla_codec_hph_pa_ctl);
+#endif /*CONFIG_LGE_AUX_NOISE*/
+
+
 static int tabla_startup(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
@@ -4145,8 +4275,43 @@ static int tabla_startup(struct snd_pcm_substream *substream,
 	    (tabla_core->dev->parent != NULL))
 		pm_runtime_get_sync(tabla_core->dev->parent);
 
+#ifdef CONFIG_LGE_AUX_NOISE
+		/*
+		 * 2012-07-20, bob.cho@lge.com
+		 * when playback is start, revert force enable of HPH PAs.
+		 */
+		if(is_force_enable_pin && snd_codec) {
+			snd_soc_dapm_disable_pin(&snd_codec->dapm, "HPHL");
+			snd_soc_dapm_disable_pin(&snd_codec->dapm, "HPHR");
+			snd_soc_dapm_disable_pin(&snd_codec->dapm, "CP");
+			snd_soc_update_bits(snd_codec, TABLA_A_RX_HPH_CNP_EN, 0x80, 0x80);
+			snd_soc_update_bits(snd_codec, TABLA_A_CP_EN, 0x01 , 0x00);
+		}
+#endif /*CONFIG_LGE_AUX_NOISE*/
+
 	return 0;
 }
+
+#ifdef CONFIG_LGE_AUX_NOISE   //FIXME tabla_shutdown is pretty different to qualcomm original source
+
+static void tabla_shutdown(struct snd_pcm_substream *substream,
+		struct snd_soc_dai *dai)
+{
+
+		/*
+		 * 2012-07-20, bob.cho@lge.com
+		 * when playback is end, start force enable of HPH PAs.
+		 */
+		if(is_force_enable_pin && snd_codec) {
+			snd_soc_update_bits(snd_codec, TABLA_A_RX_HPH_CNP_EN, 0xB0, 0xB0);
+			snd_soc_update_bits(snd_codec, TABLA_A_CP_EN, 0x01 , 0x01);
+			snd_soc_dapm_force_enable_pin(&snd_codec->dapm, "HPHL");
+			snd_soc_dapm_force_enable_pin(&snd_codec->dapm, "HPHR");
+			snd_soc_dapm_force_enable_pin(&snd_codec->dapm, "CP");
+		}
+	
+}
+#endif /*CONFIG_LGE_AUX_NOISE*/
 
 static void tabla_shutdown(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
@@ -8251,6 +8416,7 @@ static const struct tabla_reg_mask_val tabla_codec_reg_init_val[] = {
 	{TABLA_A_RX_LINE_2_GAIN, 0x10, 0x10},
 	{TABLA_A_RX_LINE_3_GAIN, 0x10, 0x10},
 	{TABLA_A_RX_LINE_4_GAIN, 0x10, 0x10},
+	{TABLA_A_RX_LINE_5_GAIN, 0x10, 0x10},
 
 	/* Set the MICBIAS default output as pull down*/
 	{TABLA_A_MICB_1_CTL, 0x01, 0x01},

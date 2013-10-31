@@ -66,6 +66,9 @@ struct pm8921_bms_platform_data {
 	unsigned int			alarm_low_mv;
 	unsigned int			alarm_high_mv;
 	int				enable_fcc_learning;
+	int				min_fcc_learning_soc;
+	int				min_fcc_ocv_pc;
+	int				max_fcc_learning_samples;
 	int				shutdown_soc_valid_limit;
 	int				ignore_shutdown_soc;
 	int				adjust_soc_low_threshold;
@@ -80,9 +83,16 @@ struct pm8921_bms_platform_data {
 	int				high_ocv_correction_limit_uv;
 	int				low_ocv_correction_limit_uv;
 	int				hold_soc_est;
+#ifdef CONFIG_WIRELESS_CHARGER
+        int                             bms_support_wlc;
+        int                             (*wlc_is_plugged)(void);
+#endif
 };
 
 #if defined(CONFIG_PM8921_BMS) || defined(CONFIG_PM8921_BMS_MODULE)
+#if !defined(CONFIG_LGE_PM_EXT_GAUGE)
+#define BMS_SYSFS_RESET
+#endif
 /**
  * pm8921_bms_get_vsense_avg - return the voltage across the sense
  *				resitor in microvolts

@@ -614,12 +614,19 @@ kgsl_put_process_private(struct kgsl_device *device,
 	debugfs_remove_recursive(private->debug_root);
 
 	list_del(&private->list);
+/*QCT CASE 01199721 Crash msm_iommu_unmap_range*/
+	while (1) {
+		spin_lock(&private->mem_lock);
+		node = rb_first(&private->mem_rb);
+		if (!node) {
+			spin_unlock(&private->mem_lock);
+			break;
+		}
 
-	for (node = rb_first(&private->mem_rb); node; ) {
 		entry = rb_entry(node, struct kgsl_mem_entry, node);
-		node = rb_next(&entry->node);
 
 		rb_erase(&entry->node, &private->mem_rb);
+		spin_unlock(&private->mem_lock);
 		kgsl_mem_entry_detach_process(entry);
 	}
 	kgsl_mmu_putpagetable(private->pagetable);
@@ -1555,6 +1562,9 @@ static int kgsl_setup_ion(struct kgsl_mem_entry *entry,
 		entry->memdesc.size += s->length;
 		entry->memdesc.sglen++;
 	}
+#if 1	// Patch from QCT - Align ION buffer mappings from userspace to 4k
+	entry->memdesc.size = PAGE_ALIGN(entry->memdesc.size);
+#endif
 
 	return 0;
 err:

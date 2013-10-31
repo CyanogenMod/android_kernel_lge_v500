@@ -23,7 +23,12 @@
 #include <mach/usb_bridge.h>
 #include <mach/usb_gadget_xport.h>
 
+#if defined(CONFIG_USB_G_LGE_ANDROID) && defined(CONFIG_LGE_MSM_HSIC_TTY) || defined(CONFIG_MACH_APQ8064_AWIFI)
+/* Skip "dun_data_hsic0" */
+static unsigned int no_data_ports = 1;
+#else
 static unsigned int no_data_ports;
+#endif
 
 #define GHSIC_DATA_RMNET_RX_Q_SIZE		50
 #define GHSIC_DATA_RMNET_TX_Q_SIZE		300
@@ -130,6 +135,10 @@ static unsigned int get_timestamp(void);
 static void dbg_timestamp(char *, struct sk_buff *);
 static void ghsic_data_start_rx(struct gdata_port *port);
 
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY) && !defined(CONFIG_MACH_APQ8064_AWIFI)
+#include "u_atcmd.c"
+#endif
+
 static void ghsic_data_free_requests(struct usb_ep *ep, struct list_head *head)
 {
 	struct usb_request	*req;
@@ -144,25 +153,22 @@ static void ghsic_data_free_requests(struct usb_ep *ep, struct list_head *head)
 static int ghsic_data_alloc_requests(struct usb_ep *ep, struct list_head *head,
 		int num,
 		void (*cb)(struct usb_ep *ep, struct usb_request *),
-		spinlock_t *lock)
+		gfp_t flags)
 {
 	int			i;
 	struct usb_request	*req;
-	unsigned long		flags;
 
 	pr_debug("%s: ep:%s head:%p num:%d cb:%p", __func__,
 			ep->name, head, num, cb);
 
 	for (i = 0; i < num; i++) {
-		req = usb_ep_alloc_request(ep, GFP_KERNEL);
+		req = usb_ep_alloc_request(ep, flags);
 		if (!req) {
 			pr_debug("%s: req allocated:%d\n", __func__, i);
 			return list_empty(head) ? -ENOMEM : 0;
 		}
 		req->complete = cb;
-		spin_lock_irqsave(lock, flags);
 		list_add(&req->list, head);
-		spin_unlock_irqrestore(lock, flags);
 	}
 
 	return 0;
@@ -312,6 +318,20 @@ static void ghsic_data_write_tomdm(struct work_struct *w)
 		pr_debug("%s: port:%p tom:%lu pno:%d\n", __func__,
 				port, port->to_modem, port->port_num);
 
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY) && !defined(CONFIG_MACH_APQ8064_AWIFI)
+        if (port->port_num == 0) /* modem */
+        {
+            spin_unlock_irqrestore(&port->rx_lock, flags);
+            if (atcmd_queue(skb->data, skb->len)) /* ATCMD_TO_AP */
+            {
+                spin_lock_irqsave(&port->rx_lock, flags);
+                dev_kfree_skb_any(skb);
+                continue;
+            }
+            spin_lock_irqsave(&port->rx_lock, flags);
+        }
+#endif
+
 		info = (struct timestamp_info *)skb->cb;
 		info->rx_done_sent = get_timestamp();
 		spin_unlock_irqrestore(&port->rx_lock, flags);
@@ -434,23 +454,20 @@ static void ghsic_data_start_rx(struct gdata_port *port)
 
 		req = list_first_entry(&port->rx_idle,
 					struct usb_request, list);
-		list_del(&req->list);
-		spin_unlock_irqrestore(&port->rx_lock, flags);
 
 		created = get_timestamp();
-		skb = alloc_skb(ghsic_data_rx_req_size, GFP_KERNEL);
-		if (!skb) {
-			spin_lock_irqsave(&port->rx_lock, flags);
-			list_add(&req->list, &port->rx_idle);
+		skb = alloc_skb(ghsic_data_rx_req_size, GFP_ATOMIC);
+		if (!skb)
 			break;
-		}
 		info = (struct timestamp_info *)skb->cb;
 		info->created = created;
+		list_del(&req->list);
 		req->buf = skb->data;
 		req->length = ghsic_data_rx_req_size;
 		req->context = skb;
 
 		info->rx_queued = get_timestamp();
+		spin_unlock_irqrestore(&port->rx_lock, flags);
 		ret = usb_ep_queue(ep, req, GFP_KERNEL);
 		spin_lock_irqsave(&port->rx_lock, flags);
 		if (ret) {
@@ -481,36 +498,36 @@ static void ghsic_data_start_io(struct gdata_port *port)
 
 	spin_lock_irqsave(&port->rx_lock, flags);
 	ep = port->out;
-	spin_unlock_irqrestore(&port->rx_lock, flags);
-	if (!ep)
-		return;
-
-	ret = ghsic_data_alloc_requests(ep, &port->rx_idle,
-		port->rx_q_size, ghsic_data_epout_complete, &port->rx_lock);
-	if (ret) {
-		pr_err("%s: rx req allocation failed\n", __func__);
+	if (!ep) {
+		spin_unlock_irqrestore(&port->rx_lock, flags);
 		return;
 	}
 
+	ret = ghsic_data_alloc_requests(ep, &port->rx_idle,
+		port->rx_q_size, ghsic_data_epout_complete, GFP_ATOMIC);
+	if (ret) {
+		pr_err("%s: rx req allocation failed\n", __func__);
+		spin_unlock_irqrestore(&port->rx_lock, flags);
+		return;
+	}
+	spin_unlock_irqrestore(&port->rx_lock, flags);
+
 	spin_lock_irqsave(&port->tx_lock, flags);
 	ep = port->in;
-	spin_unlock_irqrestore(&port->tx_lock, flags);
 	if (!ep) {
-		spin_lock_irqsave(&port->rx_lock, flags);
-		ghsic_data_free_requests(ep, &port->rx_idle);
-		spin_unlock_irqrestore(&port->rx_lock, flags);
+		spin_unlock_irqrestore(&port->tx_lock, flags);
 		return;
 	}
 
 	ret = ghsic_data_alloc_requests(ep, &port->tx_idle,
-		port->tx_q_size, ghsic_data_epin_complete, &port->tx_lock);
+		port->tx_q_size, ghsic_data_epin_complete, GFP_ATOMIC);
 	if (ret) {
 		pr_err("%s: tx req allocation failed\n", __func__);
-		spin_lock_irqsave(&port->rx_lock, flags);
 		ghsic_data_free_requests(ep, &port->rx_idle);
-		spin_unlock_irqrestore(&port->rx_lock, flags);
+		spin_unlock_irqrestore(&port->tx_lock, flags);
 		return;
 	}
+	spin_unlock_irqrestore(&port->tx_lock, flags);
 
 	/* queue out requests */
 	ghsic_data_start_rx(port);
@@ -863,6 +880,11 @@ int ghsic_data_connect(void *gptr, int port_num)
 	spin_unlock_irqrestore(&port->rx_lock, flags);
 
 	queue_work(port->wq, &port->connect_w);
+
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY) && !defined(CONFIG_MACH_APQ8064_AWIFI)
+    if (port->port_num == 0)
+        atcmd_connect(port);
+#endif
 fail:
 	return ret;
 }

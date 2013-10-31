@@ -1249,7 +1249,19 @@ static void dapm_seq_run_coalesced(struct snd_soc_dapm_context *dapm,
 		pop_dbg(dapm->dev, card->pop_time,
 			"pop test : Applying 0x%x/0x%x to %x in %dms\n",
 			value, mask, reg, card->pop_time);
-		pop_wait(card->pop_time);
+
+/* LGE_CHANGED_START 2012.08.23, sehwan.lee@lge.com
+ * Headset, Handset pop noise remove [Start]
+ */ 
+		if((!strcmp(w->name,"HPHL DAC")) || (!strcmp(w->name,"HPHR DAC"))){ /* LGE_CODE */
+			pop_wait(2);
+		}else if(!strcmp(w->name,"DAC1")){
+			msleep(15);
+		}else{ /* qualcomm original code */
+			pop_wait(card->pop_time);
+		}
+/* LGE_CHANGED_END 2012.08.23, sehwan.lee@lge.com */
+
 		soc_widget_update_bits(w, reg, mask, value);
 	}
 

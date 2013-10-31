@@ -898,7 +898,12 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			 */
 			limit_us = 3000000;
 		else
+#ifdef CONFIG_MACH_LGE
+            /* LGE_UPDATE_S apply D1L patch */
+            limit_us = 300000;
+#else
 			limit_us = 100000;
+#endif
 
 		/*
 		 * SDHC cards always use these fixed values.
@@ -2831,6 +2836,11 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
+	#ifdef CONFIG_BCMDHD_MODULE
+	#define MMC_INDEX_BRCM_WIFI 2
+	/* This patch is for nonremovable 0 case of BCM WiFi */
+		if( host->index != MMC_INDEX_BRCM_WIFI )
+	#endif //CONFIG_BCMDHD_MODULE
 		mmc_detect_change(host, 0);
 
 	}

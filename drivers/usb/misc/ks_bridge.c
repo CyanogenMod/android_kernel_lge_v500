@@ -635,6 +635,9 @@ ksb_usb_probe(struct usb_interface *ifc, const struct usb_device_id *id)
 		if (ifc_num != 2)
 			return -ENODEV;
 		ksb = __ksb[EFS_HSIC_BRIDGE_INDEX];
+#ifdef CONFIG_USB_G_LGE_ANDROID
+        ifc->needs_remote_wakeup = 1;
+#endif
 		break;
 	case 0x9079:
 		if (ifc_num != 2)
@@ -701,10 +704,14 @@ ksb_usb_probe(struct usb_interface *ifc, const struct usb_device_id *id)
 	ksb->fs_dev = *mdev;
 	misc_register(&ksb->fs_dev);
 
+#ifdef CONFIG_USB_G_LGE_ANDROID
+    usb_enable_autosuspend(ksb->udev);
+#else
 	if (device_can_wakeup(&ksb->udev->dev)) {
 		ifc->needs_remote_wakeup = 1;
 		usb_enable_autosuspend(ksb->udev);
 	}
+#endif
 
 	dev_dbg(&udev->dev, "usb dev connected");
 

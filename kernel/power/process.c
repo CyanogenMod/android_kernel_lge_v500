@@ -142,6 +142,10 @@ int freeze_processes(void)
 {
 	int error;
 
+	error = suspend_sys_sync_wait();
+	if (error)
+		return error;
+
 	error = __usermodehelper_disable(UMH_FREEZING);
 	if (error)
 		return error;
@@ -177,9 +181,9 @@ int freeze_kernel_threads(void)
 {
 	int error;
 
-	error = suspend_sys_sync_wait();
-	if (error)
-		return error;
+//	error = suspend_sys_sync_wait();
+//	if (error)
+//		return error;
 
 	printk("Freezing remaining freezable tasks ... ");
 	pm_nosig_freezing = true;

@@ -34,6 +34,13 @@ struct fsa8008_platform_data {
 	/* callback function which is initialized while probing */
 	void (*set_headset_mic_bias)(int enable);
 	void (*set_uart_console)(int enable);
+
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [START]
+	#if defined(CONFIG_MACH_APQ8064_AWIFI)
+	unsigned int gpio_power_en;
+	unsigned int gpio_hph_en;
+	#endif
+	//2013-04-17 Ilda_jung(ilda.jung@lge.com) [AWIFI/AUDIO BSP] Enable earjack power(LDO) [END]
 };
 
 #endif /* __HDS_FSA8008_H__ */

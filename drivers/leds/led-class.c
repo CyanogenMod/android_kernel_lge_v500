@@ -21,6 +21,10 @@
 #include <linux/leds.h>
 #include "leds.h"
 
+#ifdef CONFIG_LGE_PM
+#include <mach/board_lge.h>
+#endif
+
 #define LED_BUFF_SIZE 50
 
 static struct class *leds_class;
@@ -75,6 +79,11 @@ static ssize_t led_max_brightness_store(struct device *dev,
 	ret = strict_strtoul(buf, 10, &state);
 	if (!ret) {
 		ret = size;
+#ifdef CONFIG_LGE_PM
+		if(lge_get_factory_boot())
+			state = LED_FULL;
+		else
+#endif
 		if (state > LED_FULL)
 			state = LED_FULL;
 		led_cdev->max_brightness = state;

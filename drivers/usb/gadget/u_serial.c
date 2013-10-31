@@ -79,9 +79,13 @@
  * next layer of buffering.  For TX that's a circular buffer; for RX
  * consider it a NOP.  A third layer is provided by the TTY code.
  */
-#define TX_QUEUE_SIZE		8
+#define TX_QUEUE_SIZE		16
 #define TX_BUF_SIZE		4096
+#ifdef CONFIG_USB_G_LGE_ANDROID
 #define WRITE_BUF_SIZE		(8192+1)		/* TX only */
+#else
+#define WRITE_BUF_SIZE		8192		/* TX only */
+#endif
 
 #define RX_QUEUE_SIZE		8
 #define RX_BUF_SIZE		4096
@@ -393,7 +397,9 @@ __acquires(&port->port_lock)
 			if (prev_len && (prev_len % in->maxpacket == 0)) {
 				req->length = 0;
 				list_del(&req->list);
+#ifdef CONFIG_USB_G_LGE_ANDROID
 				port->write_started++;
+#endif
 				spin_unlock(&port->port_lock);
 				status = usb_ep_queue(in, req, GFP_ATOMIC);
 				spin_lock(&port->port_lock);
@@ -405,7 +411,9 @@ __acquires(&port->port_lock)
 					printk(KERN_ERR "%s: %s err %d\n",
 					__func__, "queue", status);
 					list_add(&req->list, pool);
+#ifdef CONFIG_USB_G_LGE_ANDROID
 					port->write_started--;
+#endif
 				}
 				prev_len = 0;
 			}
@@ -416,7 +424,9 @@ __acquires(&port->port_lock)
 
 		req->length = len;
 		list_del(&req->list);
+#ifdef CONFIG_USB_G_LGE_ANDROID
 		port->write_started++;
+#endif
 
 		pr_vdebug(PREFIX "%d: tx len=%d, 0x%02x 0x%02x 0x%02x ...\n",
 				port->port_num, len, *((u8 *)req->buf),
@@ -446,7 +456,9 @@ __acquires(&port->port_lock)
 			pr_debug("%s: %s %s err %d\n",
 					__func__, "queue", in->name, status);
 			list_add(&req->list, pool);
+#ifdef CONFIG_USB_G_LGE_ANDROID
 			port->write_started--;
+#endif
 			break;
 		}
 		prev_len = req->length;
@@ -1006,6 +1018,10 @@ static void gs_flush_chars(struct tty_struct *tty)
 	struct gs_port	*port = tty->driver_data;
 	unsigned long	flags;
 
+#ifdef CONFIG_USB_G_LGE_ANDROID
+	if(!port)
+		return;
+#endif
 	pr_vdebug("gs_flush_chars: (%d,%p)\n", port->port_num, tty);
 
 	spin_lock_irqsave(&port->port_lock, flags);
@@ -1020,6 +1036,10 @@ static int gs_write_room(struct tty_struct *tty)
 	unsigned long	flags;
 	int		room = 0;
 
+#ifdef CONFIG_USB_G_LGE_ANDROID
+	if(!port)
+		return room;
+#endif
 	spin_lock_irqsave(&port->port_lock, flags);
 	if (port->port_usb)
 		room = gs_buf_space_avail(&port->port_write_buf);

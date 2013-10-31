@@ -796,6 +796,13 @@ void ctrl_bridge_disconnect(unsigned int id)
 {
 	struct ctrl_bridge	*dev = __dev[id];
 
+#ifdef CONFIG_USB_G_LGE_ANDROID
+    if (!dev) {
+        err("%s: ctrl device not found\n", __func__);
+        return;
+    }
+#endif
+
 	dev_dbg(&dev->intf->dev, "%s:\n", __func__);
 
 	/*set device name to none to get correct channel id

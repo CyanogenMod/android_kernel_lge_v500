@@ -2,5 +2,14 @@
 # Makefile for the LGE board
 #
 
-# MAKO
-obj-$(CONFIG_MACH_APQ8064_MAKO) += mako/
+#L05E
+obj-$(CONFIG_MACH_APQ8064_L05E) += L05E/
+
+#AWIFI
+obj-$(CONFIG_MACH_APQ8064_AWIFI) += awifi/
+
+#GVAR CMCC
+obj-$(CONFIG_MACH_APQ8064_GVAR_CMCC) += gvar/
+
+# COMMON
+obj-$(CONFIG_MACH_APQ8064_AWIFI) += common/

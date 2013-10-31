@@ -1180,6 +1180,10 @@ int hci_add_link_key(struct hci_dev *hdev, int new_key, bdaddr_t *bdaddr,
 			(key->key_type < 0x03) ||
 			(key->key_type == 0x06 && old_key_type != 0xff))
 			bonded = 1;
+//SR01241071 MITM Protection Required, No Bonding save linkkey	[s]	
+		if ((conn->remote_auth & 0x01) && (key->key_type != 0x04))  //lge_workaround
+			bonded = 1;
+//SR01241071 MITM Protection Required, No Bonding save linkkey	[e] 
 	}
 
 	if (new_key)

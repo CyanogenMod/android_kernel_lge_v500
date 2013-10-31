@@ -16,6 +16,12 @@
 
 #ifdef __KERNEL__
 
+/* LGE_CHANGE_S, camera recovery patch, 2013.2.4, jungki.kim[Start] */
+#if defined(CONFIG_LGE_GK_CAMERA)
+#define LGE_GK_CAMERA_BSP
+#endif
+/* LGE_CHANGE_E, camera recovery patch, 2013.2.4, jungki.kim[End] */
+
 /* Header files */
 #include <linux/i2c.h>
 #include <linux/videodev2.h>
@@ -319,6 +325,7 @@ struct msm_cam_media_controller {
 	uint32_t ping_imem_cbcr;
 	uint32_t pong_imem_y;
 	uint32_t pong_imem_cbcr;
+	uint8_t hardware_running; /* LGE_CHANGE, patch for IOMMU page fault, 2012.09.06, jungryoul.choi@lge.com */
 
 	/*IOMMU domain for this session*/
 	int domain_num;
@@ -360,6 +367,9 @@ struct msm_cam_v4l2_dev_inst {
 	struct mutex inst_lock;
 	uint32_t inst_handle;
 	uint32_t sequence;
+#if defined(CONFIG_LGE_GK_CAMERA)
+	int is_closing;
+#endif
 };
 
 struct msm_cam_mctl_node {
@@ -403,6 +413,16 @@ struct msm_cam_v4l2_device {
 
 	struct msm_device_queue eventData_q; /*payload for events sent to app*/
 	struct mutex event_lock;
+
+/* LGE_CHANGE_S, Patch for ION free, 2013.1.8, gayoung85.lee[Start] */
+#if defined(CONFIG_LGE_GK_CAMERA) || defined(CONFIG_MACH_APQ8064_AWIFI)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	spinlock_t ion_lock;
+	struct ion_client *client;
+	struct kref refcount;
+#endif
+#endif
+/* LGE_CHANGE_E, Patch for ION free, 2013.1.8, gayoung85.lee[End] */
 };
 
 static inline struct msm_cam_v4l2_device *to_pcam(
@@ -428,6 +448,11 @@ struct msm_cam_config_dev {
 	int dev_num;
 	int domain_num;
 	struct iommu_domain *domain;
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI)
+	struct msm_cam_v4l2_device *pcam;
+#endif
+#endif
 };
 
 struct msm_cam_subdev_info {
@@ -595,6 +620,16 @@ struct msm_cam_server_dev {
     /*IOMMU domain (Page table)*/
 	int domain_num;
 	struct iommu_domain *domain;
+
+/* LGE_CHANGE_S, camera recovery patch, 2013.1.16, jungki.kim[Start] */
+#if defined(CONFIG_LGE_GK_CAMERA)
+	struct task_struct	*prev_task;
+	wait_queue_head_t ft_wq;
+	unsigned long	wait_ft_timeout;
+	spinlock_t	ft_spin;
+#endif
+/* LGE_CHANGE_E, camera recovery patch, 2013.1.16, jungki.kim[End] */
+
 };
 
 enum msm_cam_buf_lookup_type {
@@ -719,7 +754,11 @@ int msm_mctl_unmap_user_frame(struct msm_cam_meta_frame *meta_frame,
 	struct ion_client *client, int domain_num);
 int msm_mctl_pp_mctl_divert_done(struct msm_cam_media_controller *p_mctl,
 	void __user *arg);
+/* LGE_CHANGE_S, Patch for ION free, 2013.1.8, gayoung85.lee[Start] */
+#if !defined(CONFIG_LGE_GK_CAMERA) && !defined(CONFIG_MACH_APQ8064_AWIFI)
 void msm_release_ion_client(struct kref *ref);
+#endif
+/* LGE_CHANGE_E, Patch for ION free, 2013.1.8, gayoung85.lee[End] */
 int msm_cam_register_subdev_node(struct v4l2_subdev *sd,
 	struct msm_cam_subdev_info *sd_info);
 int msm_mctl_find_sensor_subdevs(struct msm_cam_media_controller *p_mctl,
@@ -736,6 +775,20 @@ int msm_mctl_pp_get_vpe_buf_info(struct msm_mctl_pp_frame_info *zoom);
 void msm_queue_init(struct msm_device_queue *queue, const char *name);
 void msm_enqueue(struct msm_device_queue *queue, struct list_head *entry);
 void msm_drain_eventq(struct msm_device_queue *queue);
+int get_server_use_count(void); /* LGE_CHANGE, patch for IOMMU page fault, 2012.09.06, jungryoul.choi@lge.com */
+// Start LGE_BSP_CAMERA::seongjo.kim@lge.com 2012-08-10 handle server daemon crash elegantly
+void msm_cam_stop_hardware(struct msm_cam_v4l2_device *pcam);
+// End LGE_BSP_CAMERA::seongjo.kim@lge.com 2012-08-10 handle server daemon crash elegantly
+
+/* LGE_CHANGE_S, Patch for ION free, 2013.1.8, gayoung85.lee[Start] */
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+void msm_camera_v4l2_release_ion_client(struct kref *ref);
+struct ion_client *msm_camera_v4l2_get_ion_client(struct msm_cam_v4l2_device *pcam);
+int msm_camera_v4l2_put_ion_client(struct msm_cam_v4l2_device *pcam);
+#endif
+#endif
+/* LGE_CHANGE_E, Patch for ION free, 2013.1.8, gayoung85.lee[End] */
 #endif /* __KERNEL__ */
 
 #endif /* _MSM_H */

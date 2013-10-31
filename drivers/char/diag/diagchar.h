@@ -277,6 +277,10 @@ struct diagchar_dev {
 	struct work_struct diag_proc_hdlc_work;
 	struct work_struct diag_read_work;
 #endif
+#ifdef CONFIG_USB_G_LGE_ANDROID_DIAG_OSP_SUPPORT
+	int diag_read_status;
+	wait_queue_head_t diag_read_wait_q;
+#endif
 	struct workqueue_struct *diag_wq;
 	struct work_struct diag_drain_work;
 	struct workqueue_struct *diag_cntl_wq;

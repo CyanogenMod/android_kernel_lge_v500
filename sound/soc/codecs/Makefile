@@ -213,3 +213,4 @@ obj-$(CONFIG_SND_SOC_MSM_STUB)  += snd-soc-msm-stub.o
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
 obj-$(CONFIG_SND_SOC_TPA2028D)	+= tpa2028d.o
+obj-$(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER) += tpa2028d_dual_speaker.o

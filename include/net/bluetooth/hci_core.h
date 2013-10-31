@@ -615,6 +615,11 @@ void hci_disconnect(struct hci_conn *conn, __u8 reason);
 void hci_disconnect_amp(struct hci_conn *conn, __u8 reason);
 
 void hci_conn_enter_active_mode(struct hci_conn *conn, __u8 force_active);
+// [S] LGE_BT: MOD/ilbeom.kim/'12-09-18 - [GK] Merged based on G project
+// +s LGBT_COMMON_FUNCTION_NO_SNIFF_WHEN_OPEN_SCO
+void hci_conn_enter_active_mode_no_timer(struct hci_conn *conn);
+// +e LGBT_COMMON_FUNCTION_NO_SNIFF_WHEN_OPEN_SCO
+// [E] LGE_BT: MOD/ilbeom.kim/'12-09-18 - [GK] Merged based on G project
 void hci_conn_enter_sniff_mode(struct hci_conn *conn);
 
 void hci_conn_hold_device(struct hci_conn *conn);

@@ -1,8 +1,18 @@
 #
 # Inlcude the specific Kconfig file for LGE board
 #
+
+# J1V
+source "arch/arm/mach-msm/lge/L05E/Kconfig"
+
+# JVAR CMCC
+source "arch/arm/mach-msm/lge/gvar/Kconfig"
+
 # MAKO
-source "arch/arm/mach-msm/lge/mako/Kconfig"
+#source "arch/arm/mach-msm/lge/mako/Kconfig"
+
+# AWIFI
+source "arch/arm/mach-msm/lge/awifi/Kconfig"
 
 config MACH_LGE_DUMMY
 	bool "NONE (No device)"

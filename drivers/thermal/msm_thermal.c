@@ -24,6 +24,13 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <mach/cpufreq.h>
+#ifdef CONFIG_LGE_PM
+#include <mach/board_lge.h>
+#endif
+
+#ifdef CONFIG_LGE_PM
+#define DEF_ALLOWED_MAX_FREQ 1026000
+#endif
 
 static int enabled;
 static struct msm_thermal_data msm_thermal_info;
@@ -168,7 +175,12 @@ static void __cpuinit check_temp(struct work_struct *work)
 
 	do_core_control(temp);
 
-	if (temp >= msm_thermal_info.limit_temp_degC) {
+	if (temp >= msm_thermal_info.limit_temp_degC
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//LGE_PM_L05E : samin.ryu, need check
+		|| temp <= msm_thermal_info.limit_temp_degC_low
+#endif
+		) {
 		if (limit_idx == limit_idx_low)
 			goto reschedule;
 
@@ -176,8 +188,18 @@ static void __cpuinit check_temp(struct work_struct *work)
 		if (limit_idx < limit_idx_low)
 			limit_idx = limit_idx_low;
 		max_freq = table[limit_idx].frequency;
-	} else if (temp < msm_thermal_info.limit_temp_degC -
-		 msm_thermal_info.temp_hysteresis_degC) {
+#ifdef CONFIG_LGE_PM
+		if(max_freq >= 1026000)
+			max_freq = DEF_ALLOWED_MAX_FREQ;
+		pr_info("msm_thermal: tsens_temp %ld\n", temp); 
+#endif
+	} else if ( (temp < msm_thermal_info.limit_temp_degC -
+		 msm_thermal_info.temp_hysteresis_degC)
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//LGE_PM_L05E : samin.ryu, need check
+		 && (temp > msm_thermal_info.limit_temp_degC_low)
+#endif
+		) {
 		if (limit_idx == limit_idx_high)
 			goto reschedule;
 
@@ -245,6 +267,14 @@ static void __cpuinit disable_msm_thermal(void)
 
 	if (limited_max_freq == MSM_CPUFREQ_NO_LIMIT)
 		return;
+
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//LGE_PM_L05E : samin.ryu, need check
+	if (limited_max_freq == DEF_ALLOWED_MAX_FREQ) {
+		pr_info("msm_thermal: continue  max_freq = %d..\n", DEF_ALLOWED_MAX_FREQ);
+		return;
+	}
+#endif
 
 	for_each_possible_cpu(cpu) {
 		update_cpu_max_freq(cpu, MSM_CPUFREQ_NO_LIMIT);

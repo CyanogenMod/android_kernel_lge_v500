@@ -84,6 +84,8 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	mfd = platform_get_drvdata(pdev);
 	pinfo = &mfd->panel_info;
 
+	printk(KERN_INFO "%s is started.. \n", __func__);
+
 	if (mdp_rev >= MDP_REV_41)
 		mutex_lock(&mfd->dma->ov_mutex);
 	else
@@ -102,8 +104,13 @@ static int mipi_dsi_off(struct platform_device *pdev)
 	 * Desctiption: change to DSI_CMD_MODE since it needed to
 	 * tx DCS dsiplay off comamnd to panel
 	 */
+#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_HD_PT)\
+       || defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_FHD) \
+       || defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_WUXGA)
+	/* For power sequence of LGIT Panel.  */
+#else /* QCT Orignial */
 	mipi_dsi_op_mode_config(DSI_CMD_MODE);
-
+#endif
 	if (mfd->panel_info.type == MIPI_CMD_PANEL) {
 		if (pinfo->lcd.vsync_enable) {
 			if (pinfo->lcd.hw_vsync_mode && vsync_gpio >= 0) {
@@ -114,7 +121,13 @@ static int mipi_dsi_off(struct platform_device *pdev)
 		}
 	}
 
+#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_HD_PT) \
+       || defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_FHD) \
+       || defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_WUXGA)
+	/* For power sequence of LGIT Panel */
+#else /* QCT Original */
 	ret = panel_next_off(pdev);
+#endif
 
 	spin_lock_bh(&dsi_clk_lock);
 
@@ -139,6 +152,7 @@ static int mipi_dsi_off(struct platform_device *pdev)
 
 	pr_debug("%s-:\n", __func__);
 
+	printk(KERN_INFO "%s is ended.. \n", __func__);
 	return ret;
 }
 
@@ -162,6 +176,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 	fbi = mfd->fbi;
 	var = &fbi->var;
 	pinfo = &mfd->panel_info;
+	printk(KERN_INFO "%s is started.. \n", __func__);
 
 	if (mipi_dsi_pdata && mipi_dsi_pdata->dsi_power_save)
 		mipi_dsi_pdata->dsi_power_save(1);
@@ -266,11 +281,27 @@ static int mipi_dsi_on(struct platform_device *pdev)
 		mutex_lock(&mfd->dma->ov_mutex);
 	else
 		down(&mfd->dma->mutex);
+#if defined(CONFIG_MACH_LGE)
+	ret = panel_next_on(pdev);
+	if (ret < 0)
+	{
+		if (mdp_rev >= MDP_REV_41)
+			mutex_unlock(&mfd->dma->ov_mutex);
+		else
+			up(&mfd->dma->mutex);
 
+		return ret;
+	} else {
+		ret = 0;
+	}
+	#if defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)|| defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_FHD) || defined(CONFIG_FB_MSM_MIPI_DSI_LGIT_WUXGA)
+	mipi_dsi_op_mode_config(mipi->mode);
+	#endif
+#else /*  QCT Original */
 	ret = panel_next_on(pdev);
 
 	mipi_dsi_op_mode_config(mipi->mode);
-
+#endif
 	if (mfd->panel_info.type == MIPI_CMD_PANEL) {
 		if (pinfo->lcd.vsync_enable) {
 			if (pinfo->lcd.hw_vsync_mode && vsync_gpio >= 0) {
@@ -327,6 +358,7 @@ static int mipi_dsi_on(struct platform_device *pdev)
 		up(&mfd->dma->mutex);
 
 	pr_debug("%s-:\n", __func__);
+	printk(KERN_INFO "%s is ended.. \n", __func__);
 
 	return ret;
 }
