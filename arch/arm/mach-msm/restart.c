@@ -272,6 +272,8 @@ void msm_restart(char mode, const char *cmd)
 			__raw_writel(0x77665500, restart_reason);
 		} else if (!strncmp(cmd, "recovery", 8)) {
 			__raw_writel(0x77665502, restart_reason);
+		} else if (!strcmp(cmd, "rtc")) {
+			__raw_writel(0x77665503, restart_reason);
 			/* FOTA : Add restart reason */
 		} else if (!strncmp(cmd, "fota", 4)) {
 			__raw_writel(0x77665566, restart_reason);
