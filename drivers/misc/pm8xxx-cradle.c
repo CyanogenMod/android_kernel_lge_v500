@@ -20,6 +20,7 @@
  */
 #include <linux/module.h>
 #include <linux/init.h>
+#include <linux/input.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
 #include <linux/interrupt.h>
@@ -63,6 +64,9 @@ int cradle_smart_cover_status(void)
 	return is_smart_cover_closed;/* check status of smart cover to resize knock-on area */
 }
 #endif
+
+static struct input_dev *cradle_input;
+
 static void boot_cradle_det_func(void)
 {
 	int state;
@@ -83,6 +87,10 @@ static void boot_cradle_det_func(void)
 #if (defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)) && defined(CONFIG_TOUCHSCREEN_SYNAPTICS_I2C_RMI4)
 	is_smart_cover_closed = cradle->pouch; /* check status of smart cover to resize knock-on area */
 #endif
+
+	input_report_switch(cradle_input, SW_LID, 
+			cradle->state == CRADLE_SMARTCOVER_NO_DEV ? 0 : 1);
+	input_sync(cradle_input);
 }
 
 #if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
@@ -103,6 +111,10 @@ spin_lock_irqsave(&cradle->lock, flags);
 
     if (cradle->state != state) {
 		cradle->state = state;
+		input_report_switch(cradle_input, SW_LID, 
+				cradle->state == CRADLE_SMARTCOVER_NO_DEV ? 0 : 1);
+		input_sync(cradle_input);
+
 		spin_unlock_irqrestore(&cradle->lock, flags);
 		wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
 		switch_set_state(&cradle->sdev, cradle->state);
@@ -133,6 +145,10 @@ static void pm8xxx_cradle_work_func(struct work_struct *work)
 
 	pr_info("%s : [Cradle] cradle value is %d\n", __func__ , state);
 	cradle->state = state;
+	input_report_switch(cradle_input, SW_LID, 
+			cradle->state == CRADLE_SMARTCOVER_NO_DEV ? 0 : 1);
+	input_sync(cradle_input);
+
 	spin_unlock_irqrestore(&cradle->lock, flags);
 
 	wake_lock_timeout(&cradle->wake_lock, msecs_to_jiffies(3000));
@@ -356,8 +372,38 @@ static struct platform_driver pm8xxx_cradle_driver = {
 	},
 };
 
+static int cradle_input_device_create(void){
+	int err = 0;
+
+	cradle_input = input_allocate_device();
+	if (!cradle_input) {
+		err = -ENOMEM;
+		goto exit;
+	}
+
+	cradle_input->name = "smartcover";
+	cradle_input->phys = "/dev/input/smartcover";
+
+	set_bit(EV_SW, cradle_input->evbit);
+	set_bit(SW_LID, cradle_input->swbit);
+
+	err = input_register_device(cradle_input);
+	if (err) {
+		goto exit_free;
+	}
+	return 0;
+
+exit_free:
+	input_free_device(cradle_input);
+	cradle_input = NULL;
+exit:
+	return err;
+
+}
+
 static int __init pm8xxx_cradle_init(void)
 {
+	cradle_input_device_create();
 	cradle_wq = create_singlethread_workqueue("cradle_wq");
 	pr_err("%s: cradle init \n", __func__);
 	if (!cradle_wq)
@@ -371,6 +417,7 @@ static void __exit pm8xxx_cradle_exit(void)
 {
 	if (cradle_wq)
 		destroy_workqueue(cradle_wq);
+	input_unregister_device(cradle_input);
 	platform_driver_unregister(&pm8xxx_cradle_driver);
 }
 module_exit(pm8xxx_cradle_exit);
