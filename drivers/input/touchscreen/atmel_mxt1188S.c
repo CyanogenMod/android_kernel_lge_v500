@@ -34,6 +34,7 @@
 
 #include <linux/wakelock.h>
 #include <linux/mutex.h>
+#include <linux/async.h>
 #include <linux/mfd/pm8xxx/cradle.h>
 
 #define DEBUG_ABS	1
@@ -248,6 +249,7 @@ struct touch_data {
 	u8 palm;
 	struct t_data curr_data[MXT_MAX_NUM_TOUCHES];
 	struct t_data prev_data[MXT_MAX_NUM_TOUCHES];
+	u8 palm_info[MXT_MAX_NUM_TOUCHES];
 };
 
 struct accuracy_history_data {
@@ -2676,6 +2678,97 @@ static char* get_tool_type(struct mxt_data *data, struct t_data touch_data) {
 
 static int mxt_soft_reset(struct mxt_data *data);
 #endif
+
+static void mxt_input_release_report(struct mxt_data *data, int i)
+{
+	input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
+	if (data->ts_data.prev_data[i].tool == MT_TOOL_FINGER) {
+		input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);
+	} else if (data->ts_data.prev_data[i].tool == MT_TOOL_PALM) {
+		input_mt_report_slot_state(data->input_dev, MT_TOOL_PALM, 0);
+	} else {
+		input_mt_report_slot_state(data->input_dev, MT_TOOL_FINGER, 0);
+	}
+}
+
+static void mxt_input_press_report(struct mxt_data *data, int i)
+{
+	input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
+	input_mt_report_slot_state(data->input_dev,
+		data->ts_data.curr_data[i].tool, 1);
+	input_report_abs(data->input_dev, ABS_MT_TRACKING_ID,
+		data->ts_data.curr_data[i].id);
+	input_report_abs(data->input_dev, ABS_MT_POSITION_X,
+		data->ts_data.curr_data[i].x_position);
+	input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
+		data->ts_data.curr_data[i].y_position);
+	input_report_abs(data->input_dev, ABS_MT_PRESSURE,
+		data->ts_data.curr_data[i].pressure);
+	input_report_abs(data->input_dev, ABS_MT_WIDTH_MAJOR,
+		data->ts_data.curr_data[i].touch_major);
+
+#ifdef CONFIG_TOUCHSCREEN_ATMEL_KNOCK_ON
+	input_report_abs(data->input_dev, ABS_MT_WIDTH_MINOR,
+		data->ts_data.curr_data[i].touch_minor);
+#else
+	input_report_abs(data->input_dev, ABS_MT_ORIENTATION,
+		data->ts_data.curr_data[i].orientation);
+		data->ts_data.curr_data[i].touch_minor = set_minor_data(data,
+			data->ts_data.curr_data[i].touch_major,
+			data->ts_data.curr_data[i].orientation);
+	input_report_abs(data->input_dev, ABS_MT_WIDTH_MINOR,
+			data->ts_data.curr_data[i].touch_minor);
+#endif
+}
+
+static void mxt_input_eventfilter_log(struct mxt_data *data, int i)
+{
+	struct device *dev = &data->client->dev;
+#if TOUCHEVENTFILTER
+	dev_dbg(dev,
+		"report_data[%d] : x: %d y: %d, z: %d, M: %d, m: %d, orient: %d)\n",
+			data->ts_data.curr_data[i].id,
+			data->ts_data.curr_data[i].x_position,
+			data->ts_data.curr_data[i].y_position,
+			data->ts_data.curr_data[i].pressure,
+			data->ts_data.curr_data[i].touch_major,
+			data->ts_data.curr_data[i].touch_minor, 	 
+			data->ts_data.curr_data[i].orientation
+	);
+#else
+	dev_dbg(dev, "report_data[%d] : (x %d, y %d, presure %d, touch_major %d, orient %d)\n",
+			i,
+			data->ts_data.curr_data[i].x_position,
+			data->ts_data.curr_data[i].y_position,
+			data->ts_data.curr_data[i].pressure,
+			data->ts_data.curr_data[i].touch_major,
+			data->ts_data.curr_data[i].orientation
+	);
+#endif
+}
+
+
+static void mxt_input_event_log(struct mxt_data *data, int i)
+{
+	char *tool_type;
+	struct device *dev = &data->client->dev;
+
+	if (data->ts_data.curr_data[i].status == FINGER_PRESSED) {
+		tool_type = get_tool_type(data, data->ts_data.curr_data[i]);
+		dev_dbg(dev, "%s Pressed <%d> : x[%4d] y[%4d], z[%3d]\n",
+				tool_type,
+				data->ts_data.curr_data[i].id,
+				data->ts_data.curr_data[i].x_position,
+				data->ts_data.curr_data[i].y_position,
+				data->ts_data.curr_data[i].pressure);
+	} else if (data->ts_data.curr_data[i].status == FINGER_RELEASED) {
+		tool_type = get_tool_type(data, data->ts_data.prev_data[i]);
+		dev_dbg(dev, "%s Released <%d>\n",
+				tool_type,
+				data->ts_data.curr_data[i].id);
+	}
+}
+
 static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 {
 	struct device *dev = &data->client->dev;
@@ -2688,7 +2781,6 @@ static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 	static int stylus_tracking_type = 0;
 	int report_num = 0;
 	int pen_count = 0;
-	char *tool_type;
 	int i;
 //	bool long_pressed = false;
 #endif
@@ -2853,84 +2945,26 @@ static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 		}
 
 		if (data->ts_data.curr_data[i].status == FINGER_RELEASED) {
-			input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
-			if (data->ts_data.prev_data[i].tool == MT_TOOL_FINGER) {
-				input_mt_report_slot_state(data->input_dev,	MT_TOOL_FINGER, 0);
-			} else if (data->ts_data.prev_data[i].tool == MT_TOOL_PALM) {
-				input_mt_report_slot_state(data->input_dev,	MT_TOOL_PALM, 0);
-			} else {
-				input_mt_report_slot_state(data->input_dev,	MT_TOOL_FINGER, 0);
-			}
+			if(data->ts_data.palm_info[i] != FIRST_PALM)
+				mxt_input_release_report(data, i);
+			data->ts_data.palm_info[i] = NOT_ACTIVE;
 		} else {
-			input_mt_slot(data->input_dev, data->ts_data.curr_data[i].id);
-			input_mt_report_slot_state(data->input_dev,
-					data->ts_data.curr_data[i].tool, 1);
-			input_report_abs(data->input_dev, ABS_MT_TRACKING_ID,
-					data->ts_data.curr_data[i].id);
-			input_report_abs(data->input_dev, ABS_MT_POSITION_X,
-					data->ts_data.curr_data[i].x_position);
-			input_report_abs(data->input_dev, ABS_MT_POSITION_Y,
-					data->ts_data.curr_data[i].y_position);
-			input_report_abs(data->input_dev, ABS_MT_PRESSURE,
-					data->ts_data.curr_data[i].pressure);
-			input_report_abs(data->input_dev, ABS_MT_WIDTH_MAJOR,
-					data->ts_data.curr_data[i].touch_major);
+			if(data->ts_data.curr_data[i].tool == MT_TOOL_PALM && (data->ts_data.prev_data[i].status == FINGER_RELEASED || data->ts_data.prev_data[i].status == FINGER_INACTIVE))
+			{
+				data->ts_data.palm_info[i] = FIRST_PALM;  
+			}
+			else if(data->ts_data.curr_data[i].tool == MT_TOOL_PALM && (data->ts_data.prev_data[i].status == FINGER_PRESSED || data->ts_data.prev_data[i].status == FINGER_MOVED))
+			{
+				data->ts_data.palm_info[i] = PALM_AND_FINGER;  
+				mxt_input_release_report(data, i);
+			}
+            else
+				mxt_input_press_report(data, i);
 
-			// LGE_CHANGE_S [naomi.kim@lge.com] 13.06.18, report width minor data
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_KNOCK_ON//0//TOUCHEVENTFILTER
-			input_report_abs(data->input_dev, ABS_MT_WIDTH_MINOR,
-					data->ts_data.curr_data[i].touch_minor);
-#else
-			input_report_abs(data->input_dev, ABS_MT_ORIENTATION,
-								data->ts_data.curr_data[i].orientation);
-
-			data->ts_data.curr_data[i].touch_minor = set_minor_data(data,
-													data->ts_data.curr_data[i].touch_major,
-													data->ts_data.curr_data[i].orientation);
-			input_report_abs(data->input_dev, ABS_MT_WIDTH_MINOR,
-					data->ts_data.curr_data[i].touch_minor);
-#endif	//TOUCHEVENTFILTER
-			// LGE_CHANGE_E [naomi.kim@lge.com] 13.06.18, report width minor data
-
-			// LGE_CHANGE_S [naomi.kim@lge.com] 13.06.18, add more debugging data
-			#if TOUCHEVENTFILTER
-			dev_dbg(dev,
-				"report_data[%d] : x: %d y: %d, z: %d, M: %d, m: %d, orient: %d)\n",
-					data->ts_data.curr_data[i].id,
-					data->ts_data.curr_data[i].x_position,
-					data->ts_data.curr_data[i].y_position,
-					data->ts_data.curr_data[i].pressure,
-					data->ts_data.curr_data[i].touch_major,
-					data->ts_data.curr_data[i].touch_minor,		//added
-					data->ts_data.curr_data[i].orientation
-			);
-			#else	//TOUCHEVENTFILTER
-			dev_dbg(dev, "report_data[%d] : (x %d, y %d, presure %d, touch_major %d, orient %d)\n",
-					i,
-					data->ts_data.curr_data[i].x_position,
-					data->ts_data.curr_data[i].y_position,
-					data->ts_data.curr_data[i].pressure,
-					data->ts_data.curr_data[i].touch_major,
-					data->ts_data.curr_data[i].orientation
-			);
-			#endif	//TOUCHEVENTFILTER
-			// LGE_CHANGE_E [naomi.kim@lge.com] 13.06.18, add more debugging data
+			mxt_input_eventfilter_log(data, i);
 		}
 #if DEBUG_ABS
-		if (data->ts_data.curr_data[i].status == FINGER_PRESSED) {
-			tool_type = get_tool_type(data, data->ts_data.curr_data[i]);
-			dev_info(dev, "%s Pressed <%d> : x[%4d] y[%4d], z[%3d]\n",
-					tool_type,
-					data->ts_data.curr_data[i].id,
-					data->ts_data.curr_data[i].x_position,
-					data->ts_data.curr_data[i].y_position,
-					data->ts_data.curr_data[i].pressure);
-		} else if (data->ts_data.curr_data[i].status == FINGER_RELEASED) {
-			tool_type = get_tool_type(data, data->ts_data.prev_data[i]);
-			dev_info(dev, "%s Released <%d>\n",
-					tool_type,
-					data->ts_data.curr_data[i].id);
-		}
+		mxt_input_event_log(data, i);
 #endif
 	}
 
@@ -2943,7 +2977,7 @@ static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 		memset(data->ts_data.prev_data, 0, sizeof(data->ts_data.prev_data));
 	}
 	memset(data->ts_data.curr_data, 0, sizeof(data->ts_data.curr_data));
-#endif//CUST_A_TOUCH
+#endif 
 
 end:
 	if (data->update_input) {
@@ -3873,6 +3907,12 @@ static int mxt_configure_objects(struct mxt_data *data)
 	}
 
 #ifdef FIRMUP_ON_PROBE
+
+	error = mxt_soft_reset(data);
+	if (error) {
+		dev_err(&data->client->dev, "Failed to reset IC\n");
+	}
+
 	mxt_update_crc(data, MXT_COMMAND_REPORTALL, 1);
 
 	if (data->config_crc == 0 || data->config_crc != MXT_LATEST_CONFIG_CRC) {
@@ -4249,6 +4289,8 @@ static ssize_t mxt_update_fw_store(struct device *dev,
         error = mxt_rest_init(data);
 		if (error)
 			return error;
+
+		data->enable_reporting = true;
 	}
 
 	return count;
@@ -4849,9 +4891,6 @@ static int mxt_initialize_t9_input_device(struct mxt_data *data)
 			     0, 255, 0, 0);
 	input_set_abs_params(input_dev, ABS_MT_ORIENTATION,
 			     0, 255, 0, 0);
-	input_set_abs_params(input_dev, ABS_MT_TOOL_TYPE,
-				 0, MT_TOOL_MAX, 0, 0);
-
 
 	/* For T15 key array */
 	if (data->T15_reportid_min) {
@@ -5175,9 +5214,15 @@ static struct i2c_driver mxt_driver = {
 	.id_table	= mxt_id,
 };
 
+static void __init mxt_init_async(void *data, async_cookie_t cookie)
+{
+	i2c_add_driver(&mxt_driver);
+}
+
 static int __init mxt_init(void)
 {
-	return i2c_add_driver(&mxt_driver);
+	async_schedule(mxt_init_async, NULL);
+	return 0;
 }
 
 static void __exit mxt_exit(void)
