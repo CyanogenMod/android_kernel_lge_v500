@@ -3006,7 +3006,7 @@ int __init vty_init(const struct file_operations *console_fops)
 	if (tty_register_driver(console_driver))
 		panic("Couldn't register console driver\n");
 	kbd_init();
-	console_map_init();
+	//console_map_init();
 #ifdef CONFIG_MDA_CONSOLE
 	mda_console_init();
 #endif
