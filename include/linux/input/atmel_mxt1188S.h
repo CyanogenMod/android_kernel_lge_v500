@@ -17,18 +17,30 @@
 #define CUST_A_TOUCH
 #endif
 
+#ifndef USE_FW_11AA
+#define USE_FW_11AA
+#endif
+
 #include <linux/types.h>
+#include <linux/fb.h>
 
 #define MXT_DEVICE_NAME			"touch_mxt1188S"
 #define MXT_MAX_NUM_TOUCHES		10
 
-#ifdef CONFIG_TOUCHSCREEN_ATMEL_KNOCK_ON
-#define MXT_LATEST_FW_VERSION       0x10
+#ifdef USE_FW_11AA
+#ifdef CONFIG_TOUCHSCREEN_LGE_LPWG
+#define MXT_LATEST_FW_VERSION       0x20
 #define MXT_LATEST_FW_BUILD         0xAA
-#else //CONFIG_TOUCHSCREEN_ATMEL_KNOCK_ON
-#define MXT_LATEST_FW_VERSION       0x21
+#else
+#define MXT_LATEST_FW_VERSION       0x11
 #define MXT_LATEST_FW_BUILD         0xAA
-#endif //CONFIG_TOUCHSCREEN_ATMEL_KNOCK_ON
+#endif
+#else //USE_FW_11AA
+#define MXT_LATEST_FW_VERSION       0x20
+#define MXT_LATEST_FW_BUILD         0xAB
+#endif //USE_FW_11AA
+
+#define LGE_TOUCH_NAME		"lge_touch"
 
 enum { MXT_RESERVED_T0 = 0,
 	MXT_RESERVED_T1,
@@ -102,25 +114,31 @@ enum { MXT_RESERVED_T0 = 0,
 	MXT_PROCI_ZONEINDICATION_T73 = 73,
 	MXT_SPT_CTESCANCONFIG_T77 = 77,
 	MXT_SPT_TOUCHEVENTTRIGGER_T79 = 79,
+#ifdef USE_FW_11AA
 	MXT_SPT_NOISESUPEXTENSION_T82 = 82,
+#endif
 	MXT_TOUCH_MULTITOUCHSCREEN_T100 = 100,
+#ifdef CONFIG_TOUCHSCREEN_LGE_LPWG
+	MXT_PROCI_TOUCH_SEQUENCE_LOGGER_T93 = 93,
+#endif
 	MXT_RESERVED_T255 = 255,
 };
 
 #ifdef CUST_A_TOUCH
 enum{
-	FINGER_INACTIVE,
+	FINGER_INACTIVE = 0,
 	FINGER_RELEASED,
 	FINGER_PRESSED,
 	FINGER_MOVED
 };
+#endif
 
 enum{
-	NOT_ACTIVE,
-	FIRST_PALM,
-	PALM_AND_FINGER
+	CARD_X_PORT = 1800,
+	CARD_Y_PORT = 1800,
+	CARD_X_LAND = 2900,
+	CARD_Y_LAND = 1000
 };
-#endif
 
 /* The platform data for the Atmel maXTouch touchscreen driver */
 struct mxt_platform_data {
@@ -152,12 +170,18 @@ struct mxt_platform_data {
 	const u8 **sus_config;
 	const u8 **sus_charger_config;
 	const u8 **act_config;
+	char knock_on_type;
 #endif
+	const u8 **sus_udf_config;
+	const u8 **sus_udf_charger_config;
+	const u8 **act_udf_config;
 #ifdef CUST_A_TOUCH
 	int		accuracy_filter_enable;
 	int		ghost_detection_enable;
 #endif
 };
+
+int fb_notifier_callback(struct notifier_block *self, unsigned long event, void *data);
 
 #endif /* __LINUX_ATMEL_MXT_TS_H */
 

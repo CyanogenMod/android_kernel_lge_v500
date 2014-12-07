@@ -132,6 +132,10 @@ enum {
 #define I2C_STATUS_CLK_STATE		13
 #define QUP_OUT_FIFO_NOT_EMPTY		0x10
 
+//                                                   
+#ifdef CONFIG_MACH_APQ8064_AWIFI
+bool atmel_touch_i2c_suspended = false;        /* Use atme touch IC for checking i2c suspend */
+#endif
 static char const * const i2c_rsrcs[] = {"i2c_clk", "i2c_sda"};
 
 static struct gpiomux_setting recovery_config = {
@@ -1448,6 +1452,7 @@ static int i2c_qup_pm_suspend_runtime(struct device *device)
 		qup_i2c_pwr_mgmt(dev, 0);
 		qup_i2c_free_gpios(dev);
 	}
+
 	return 0;
 }
 
@@ -1463,6 +1468,7 @@ static int i2c_qup_pm_resume_runtime(struct device *device)
 			return ret;
 		qup_i2c_pwr_mgmt(dev, 1);
 	}
+
 	dev->suspended = 0;
 	return 0;
 }
@@ -1471,8 +1477,17 @@ static int qup_i2c_suspend(struct device *device)
 {
 	if (!pm_runtime_enabled(device) || !pm_runtime_suspended(device)) {
 		dev_dbg(device, "system suspend");
+
 		i2c_qup_pm_suspend_runtime(device);
 	}
+
+#ifdef CONFIG_MACH_APQ8064_AWIFI
+	if (!strncmp(dev_name(device), "qup_i2c.3", 9)){
+		dev_info(device, "%s atmel_touch_i2c_suspended = true\n", __func__);
+		atmel_touch_i2c_suspended = true;
+	}
+#endif
+
 	return 0;
 }
 
@@ -1486,8 +1501,40 @@ static int qup_i2c_resume(struct device *device)
 			pm_runtime_mark_last_busy(device);
 			pm_request_autosuspend(device);
 		}
+
+#ifdef CONFIG_MACH_APQ8064_AWIFI
+		if (!strncmp(dev_name(device), "qup_i2c.3", 9)){
+			dev_info(device, "%s atmel_touch_i2c_suspended = false\n", __func__);
+			atmel_touch_i2c_suspended = false;
+		}
+#endif
 		return ret;
 	}
+
+#if 0//def CONFIG_MACH_APQ8064_AWIFI
+	//                                                                
+	if (pm_runtime_suspended(device)) {
+		dev_info(device, "i2c is runtime suspended status !!! try to runtime resume !!!\n");
+	}
+
+	if (!pm_runtime_enabled(device)) {
+		dev_info(device, "Runtime PM is disabled\n");
+		i2c_qup_pm_resume_runtime(device);
+	} else {
+		pm_runtime_get_sync(device);
+	}
+
+	if (pm_runtime_suspended(device)) {
+		dev_info(device, "i2c can't wake up !!! pm_runtime_get_sync() doesn't work !!!\n");
+	}
+#endif
+#ifdef CONFIG_MACH_APQ8064_AWIFI
+	if (!strncmp(dev_name(device), "qup_i2c.3", 9)){
+		dev_info(device, "%s atmel_touch_i2c_suspended = false\n", __func__);
+		atmel_touch_i2c_suspended = false;
+	}
+#endif
+
 	return 0;
 }
 #endif /* CONFIG_PM */
