@@ -1347,12 +1347,10 @@ static int msm_rotator_ycxcx_h2v2_2pass(struct msm_rotator_img_info *info,
 
 	msm_rotator_dev->processing = 1;
 	iowrite32(0x1, MSM_ROTATOR_START);
-	mutex_unlock(&msm_rotator_dev->rotator_lock);
 	/* End of Pass-1 */
 	wait_event(msm_rotator_dev->wq,
 		   (msm_rotator_dev->processing == 0));
 	/* Beginning of Pass-2 */
-	mutex_lock(&msm_rotator_dev->rotator_lock);
 	status = (unsigned char)ioread32(MSM_ROTATOR_INTR_STATUS);
 	if ((status & 0x03) != 0x01) {
 		pr_err("%s(): AXI Bus Error, issuing SW_RESET\n",
@@ -2617,12 +2615,12 @@ static int msm_rotator_start(unsigned long arg,
 		char timeline_name[MAX_TIMELINE_NAME_LEN];
 		if (sync_info->timeline == NULL) {
 			snprintf(timeline_name, sizeof(timeline_name),
-					"msm_rot_%d", first_free_idx);
+				"msm_rot_%d", first_free_idx);
 			sync_info->timeline =
 				sw_sync_timeline_create(timeline_name);
 			if (sync_info->timeline == NULL)
 				pr_err("%s: cannot create %s time line",
-						__func__, timeline_name);
+					__func__, timeline_name);
 			sync_info->timeline_value = 0;
 		}
 		mutex_init(&sync_info->sync_mutex);
