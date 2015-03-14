@@ -15,26 +15,56 @@ config LGE_QFPROM_INTERFACE
 	help
 	  LGE QFPROM DRIVER.
 
-config UPDATE_LCDC_LUT
+config LGE_QC_LCDC_LUT
 	bool "Set initial Qualcomm LCDC lut"
 	default n
 	depends on MACH_LGE
 	help
 	  Set initial Qualcomm LCDC Look Up Table.
 
-config LCD_KCAL
+config LGE_KCAL
 	bool "Interface to calibrate LCD color temperature"
 	default n
-	depends on MACH_LGE && UPDATE_LCDC_LUT
+	depends on MACH_LGE
 	help
 	  Interface to calibrate LCD color temperature
 
+config LGE_KCAL_QLUT
+	bool "Interface to calibrate LCD color temperature by QLUT"
+	default n
+	depends on MACH_LGE && LGE_QC_LCDC_LUT && LGE_KCAL
+	help
+	  Interface to calibrate LCD color temperature by QLUT
+
 config EARJACK_DEBUGGER
 	bool "Earjack UART debugger support"
-	depends on MACH_APQ8064_MAKO
+	depends on MACH_APQ8064_GKU || MACH_APQ8064_GKKT || MACH_APQ8064_GKSK || MACH_APQ8064_GVKT || MACH_APQ8064_OMEGAR || MACH_APQ8064_OMEGA
 	default n
 	help
 	  Saying Y here will support earjack type UART debugger cable
+
+config LGE_BOOT_TIME_CHECK
+	tristate "Support LGE BOOT TIME CHECK"
+	default y
+	depends on MACH_LGE
+	help
+	LGE SBL1 to LK BOOT TIME CHECKER.
+
+
+#BEGIN: 0019632 chanha.park@lge.com 2012-05-31
+#ADD: 0019632: [F200][BT] Bluetooth board bring-up
+   config LGE_BLUESLEEP
+       default n
+       bool "APQ8064 LGE Bluetooth LPM"
+       depends on MACH_LGE 
+#END: 0019632 chanha.park@lge.com 2012-05-31 
+
+config LGE_ECO_MODE
+    tristate "Support LGE ECO Mode"
+    default n
+    depends on MACH_LGE
+    help
+      LGE ECO mode support
 
 config LGE_CRASH_HANDLER
 	tristate "Support LGE Crash Handler"
@@ -44,4 +74,84 @@ config LGE_CRASH_HANDLER
 	help
 	  LGE Crash Handler
 
+config LGE_SUSPEND_TIME
+    tristate "Log time spent in suspend"
+    default y
+    depends on MACH_LGE
+	help
+	  Prints the time spent in suspend in the kernel log, and
+	  keeps statistics on the time spent in suspend in
+	  /sys/kernel/debug/suspend_time
+
+	  This patch serves same function with google's suspend_time.c
+
+config LGE_EARLYSUSPEND_FUNC_TIME
+    tristate "Log time spent in each earlysuspend call"
+    default y
+    depends on MACH_LGE
+	help
+	  Keeps the time statistics spent in each earlysuspend in 
+	  /sys/kernel/debug/earlysuspend_func_time.
+	  This file shows the average and max tiem of each 
+	  earlysuspend/lateresume function.
+
+config LGE_SUSPEND_AUTOTEST
+    tristate "Test suspend/resume and earlysuspend/lateresume automatically"
+    default y
+    depends on MACH_LGE && SUSPEND && EARLYSUSPEND
+	help
+      This option will let you suspend your machine, and make it wake up
+	  a few seconds later using an timer automatically.  
+	  Enable this with a kernel parameter by sysfs.
+
+
+config LGE_BITE_RESET
+        tristate "Disable PS_HOLD reset"
+        default n
+        depends on MACH_LGE
+        help
+          Reset device by WDT BITE instead of PS_HOLD
+
+config LGE_R63311_COLOR_ENGINE
+	bool "Interface to apply color engine"
+	default y
+	depends on MACH_LGE
+	help
+	  Interface to apply color engine
+
+config LGIT_COLOR_ENGINE_SWITCH
+	bool "Disable the color engine for camera"
+	default y
+	depends on MACH_LGE
+	help
+	  Enable the color engine on/off function for camera
+config LGE_R63311_BACKLIGHT_CABC 
+	bool "Interface to apply backlight cabc"
+	default y
+	depends on MACH_LGE
+	help
+	  Interface to apply backlight cabc
+
+config LGE_BACKLIGHT_CABC
+	bool "Interface to apply backlight cabc"
+	default n
+	depends on MACH_LGE
+	help
+	  Interface to apply backlight cabc
+
+config LGE_ENABEL_MMC_STRENGTH_CONTROL
+    bool "Support MMC Strength Control"
+    default n
+    depends on MACH_LGE
+    help
+      LGE mmc data,cmd,clk strength control support
 endmenu
+
+config LGE_MSM_HSIC_TTY
+    bool "LGE HSIC TTY Driver"
+    default n
+    help
+      Provides a TTY driver HSIC TTY
+      This driver can be used by user space
+      applications for passing data through the
+      HSIC interface.

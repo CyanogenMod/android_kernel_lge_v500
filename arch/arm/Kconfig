@@ -2053,6 +2053,9 @@ config CP_ACCESS
 
 	  If unsure, say N.
 
+# 2013-05-02 Hyoungtaek-Lim[hyoungtaek.lim@lge.com)[A/vmware/common]VMware Switch
+source "arch/arm/mvp/Kconfig"
+
 endmenu
 
 menu "Boot options"

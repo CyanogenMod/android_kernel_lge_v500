@@ -26,8 +26,18 @@
 #define NO_LOGGING_MODE			3
 #define UART_MODE			4
 #define SOCKET_MODE			5
-#define CALLBACK_MODE			6
+#define CALLBACK_MODE                   6
 #define MEMORY_DEVICE_MODE_NRT		7
+
+#ifdef CONFIG_LGE_DM_APP
+#define DM_APP_MODE			10
+#endif
+
+//                                                                             
+#ifdef CONFIG_LGE_DM_DEV
+#define DM_DEV_MODE         20
+#endif
+//                                                                           
 /* different values that go in for diag_data_type */
 #define DATA_TYPE_EVENT         	0
 #define DATA_TYPE_F3            	1

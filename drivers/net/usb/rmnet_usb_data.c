@@ -867,9 +867,11 @@ static const struct usb_device_id vidpids[] = {
 	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6, 0x9034, 7),
 	.driver_info = (unsigned long)&rmnet_info,
 	},
+#ifndef CONFIG_USB_LGE_DDM_BRIDGE	
 	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6, 0x9048, 5),
 	.driver_info = (unsigned long)&rmnet_info,
 	},
+#endif
 	{ USB_DEVICE_INTERFACE_NUMBER(0x05c6, 0x9048, 6),
 	.driver_info = (unsigned long)&rmnet_info,
 	},

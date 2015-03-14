@@ -35,3 +35,7 @@ mdm_bridge-y				:= mdm_ctrl_bridge.o mdm_data_bridge.o
 obj-$(CONFIG_USB_QCOM_MDM_BRIDGE) 	+= mdm_bridge.o
 obj-$(CONFIG_USB_QCOM_KS_BRIDGE)	+= ks_bridge.o
 obj-$(CONFIG_USB_QCOM_IPC_BRIDGE)	+= ipc_bridge.o
+#[start][20121211][ModemBSP][secheol.pyo][Uses to change rmnet3 to DDM Bridge that depends on MDM]
+obj-$(CONFIG_USB_LGE_DDM_BRIDGE) 	+= ddm_tty_forward.o ddm_bridge.o
+#[end][20121211][ModemBSP][secheol.pyo][Uses to change rmnet3 to DDM Bridge that depends on MDM]
+obj-$(CONFIG_USB_LGE_DDM_TTY) 		+= lg_ddm_tty.o

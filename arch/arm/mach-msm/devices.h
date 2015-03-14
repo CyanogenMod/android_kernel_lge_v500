@@ -90,15 +90,34 @@ extern struct platform_device apq8064_device_uart_gsbi1;
 extern struct platform_device apq8064_device_uart_gsbi3;
 extern struct platform_device apq8064_device_uart_gsbi4;
 extern struct platform_device apq8064_device_uartdm_gsbi4;
+#if defined(CONFIG_LGE_FELICA) || defined(CONFIG_LGE_NFC_SONY_CXD2235AGG)
+extern struct platform_device apq8064_device_felica_gsbi3;
+#endif 
+#if defined(CONFIG_LGE_IRRC)
 extern struct platform_device apq8064_device_uart_gsbi7;
+#endif
 extern struct platform_device apq8064_device_qup_i2c_gsbi1;
 extern struct platform_device apq8064_device_qup_i2c_gsbi3;
 extern struct platform_device apq8064_device_qup_i2c_gsbi4;
+#if defined(CONFIG_BQ24262_CHARGER)
+extern struct platform_device apq8064_device_qup_i2c_gsbi5;
+#endif
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER) || (defined(CONFIG_MACH_LGE)&& defined (CONFIG_TOUCHSCREEN_S340010_SYNAPTICS_TK))
+extern struct platform_device apq8064_device_qup_i2c_gsbi7;
+#endif
+
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ONESEG)
 extern struct platform_device apq8064_device_qup_spi_gsbi5;
+#endif	 /*                      */
+
 extern struct platform_device apq8064_slim_ctrl;
 extern struct platform_device apq8064_device_ssbi_pmic1;
 extern struct platform_device apq8064_device_ssbi_pmic2;
 extern struct platform_device apq8064_device_cache_erp;
+#ifdef CONFIG_WIRELESS_CHARGER
+extern struct platform_device wireless_charger;
+#endif
+
 
 extern struct platform_device msm9615_device_uart_gsbi4;
 extern struct platform_device msm9615_device_qup_i2c_gsbi5;

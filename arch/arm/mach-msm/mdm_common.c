@@ -31,6 +31,8 @@
 #include <linux/clk.h>
 #include <linux/mfd/pmic8058.h>
 #include <linux/msm_charm.h>
+#include <asm/uaccess.h>
+#include <asm/unistd.h>
 #include <asm/mach-types.h>
 #include <asm/uaccess.h>
 #include <mach/mdm2.h>
@@ -43,6 +45,10 @@
 #include "msm_watchdog.h"
 #include "mdm_private.h"
 #include "sysmon.h"
+
+#ifndef __KERNEL_SYSCALLS__
+#define __KERNEL_SYSCALLS__
+#endif
 
 #define MDM_MODEM_TIMEOUT	6000
 #define MDM_MODEM_DELTA	100
@@ -59,6 +65,31 @@
 #define DEVICE_BASE_NAME "mdm"
 #define DEVICE_NAME_LENGTH \
 	(sizeof(DEVICE_BASE_NAME) + MAX_DEVICE_DIGITS)
+
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#define STEP_PBL_FAIL		1
+#define STEP_9008_FAIL		2
+#define STEP_UNMEASURABLE_FAIL	3
+#define STEP_9048_FAIL		4
+#define STEP_CRASH		5
+#define STEP_SHUTDOWN		6
+#define STEP_ERROR		7
+#define STEP_MAX		8
+
+static int modem_boot_check = 0;
+static int failure_step[100];
+static int failure_step_count = 0;
+static int root_failure_step = STEP_MAX;
+static int now_early_booting = 1;
+static int mdm2ap_status_error_timer = 0;
+static int mdm2ap_errfatal_error_timer = 0;
+module_param(modem_boot_check, int, S_IRUGO | S_IWUSR);
+module_param(root_failure_step, int, S_IRUGO | S_IWUSR);
+
+void update_failure_case(void);
+int get_error_step(int *phase, int phase_size);
+int translate_failure(void);
+#endif
 
 #define RD_BUF_SIZE			100
 #define SFR_MAX_RETRIES		10
@@ -166,6 +197,14 @@ static struct kernel_param_ops disable_boot_timeout_ops = {
 module_param_cb(disable_boot_timeout, &disable_boot_timeout_ops,
 		&disable_boot_timeout, 0644);
 MODULE_PARM_DESC(disable_boot_timeout, "Disable panic on mdm bootup timeout");
+
+// kyle00.choi, 20140411, RF Device Check [START]		
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+static void log_modem_sfr(void);
+#endif
+// kyle00.choi, 20140411, RF Device Check [END]
+
+
 /* If the platform's cascading_ssr flag is set, the subsystem
  * restart module will restart the other modems so stop
  * monitoring them as well.
@@ -190,6 +229,12 @@ static void mdm_start_ssr(struct mdm_device *mdev)
 		atomic_set(&mdev->mdm_data.mdm_ready, 0);
 		pr_info("%s: Resetting mdm id %d due to mdm error\n",
 				__func__, mdev->mdm_data.device_id);
+// kyle00.choi, 20140411, RF Device Check [START]		
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+		log_modem_sfr();
+#endif
+// kyle00.choi, 20140411, RF Device Check [END]
+
 		subsystem_restart_dev(mdev->mdm_subsys_dev);
 	} else {
 		pr_info("%s: Another modem is already in SSR\n",
@@ -379,6 +424,11 @@ static void mdm_setup_vddmin_gpios(void)
 	return;
 }
 
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#define MAX_SSR_REASON_LEN 81U
+char ssr_reason[MAX_SSR_REASON_LEN];
+#endif
+
 static void mdm_restart_reason_fn(struct work_struct *work)
 {
 	int ret, ntries = 0;
@@ -406,6 +456,9 @@ static void mdm_restart_reason_fn(struct work_struct *work)
 						SFR_MAX_RETRIES);
 			} else {
 				pr_err("mdm restart reason: %s\n", sfr_buf);
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+                                sprintf(ssr_reason, "%s\n", sfr_buf);
+#endif
 				break;
 			}
 		}
@@ -426,8 +479,12 @@ static void mdm2ap_status_check(struct work_struct *work)
 		if (gpio_get_value(mdm_drv->mdm2ap_status_gpio) == 0) {
 			pr_err("%s: MDM2AP_STATUS did not go high on mdm id %d\n",
 				   __func__, mdev->mdm_data.device_id);
-			if (!disable_boot_timeout)
+			if (!disable_boot_timeout) {
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+			mdm2ap_status_error_timer = 3;
+#endif
 				mdm_start_ssr(mdev);
+			}
 		}
 	}
 }
@@ -487,6 +544,23 @@ static long mdm_modem_ioctl(struct file *filp, unsigned int cmd,
 	case WAKE_CHARM:
 		pr_info("%s: Powering on mdm id %d\n",
 				__func__, mdev->mdm_data.device_id);
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+		if((mdm2ap_status_error_timer == 3 || mdm2ap_status_error_timer <= 0) &&
+			(mdm2ap_errfatal_error_timer == 3 || mdm2ap_errfatal_error_timer <= 0)) {
+			if(mdm_drv->pdata->early_power_on &&
+				now_early_booting != 1) {
+				update_failure_case();
+				modem_boot_check = 0x1;
+				printk("modem_boot_check : %d\n", modem_boot_check);
+				printk("%s : mdm2ap_status_error_timer : %d, mdm2ap_errfatal_error_timer : %d",
+						 __func__, mdm2ap_status_error_timer, mdm2ap_errfatal_error_timer);
+				mdm2ap_status_error_timer--;
+				mdm2ap_errfatal_error_timer --;
+			} else {
+				now_early_booting = 0;
+			}
+		}
+#endif
 		mdm_ops->power_on_mdm_cb(mdm_drv);
 		break;
 	case CHECK_FOR_BOOT:
@@ -506,6 +580,10 @@ static long mdm_modem_ioctl(struct file *filp, unsigned int cmd,
 		} else {
 			pr_info("%s: normal boot of mdm id %d done\n",
 					__func__, mdev->mdm_data.device_id);
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+			modem_boot_check = 0x7;
+			printk("modem_boot_check : %d", modem_boot_check);
+#endif
 			mdm_drv->mdm_boot_status = 0;
 		}
 		atomic_set(&mdm_drv->mdm_ready, 1);
@@ -587,6 +665,14 @@ static long mdm_modem_ioctl(struct file *filp, unsigned int cmd,
 			   __func__, ret);
 		put_user(ret, (unsigned long __user *) arg);
 		break;
+#ifdef CONFIG_LGE_PM_SHUTDOWN_MDM_IN_CHARGERLOGO
+   case FORCE_SHUTDOWN_CHARM:
+        pr_debug("%s FORCE_SHUTDOWN_CHARM\n", __func__);
+        gpio_direction_output(mdm_drv->ap2mdm_soft_reset_gpio,1);
+        mdelay(250);
+        gpio_direction_output(mdm_drv->ap2mdm_soft_reset_gpio,0);
+        break;
+#endif
 	default:
 		pr_err("%s: invalid ioctl cmd = %d\n", __func__, _IOC_NR(cmd));
 		ret = -EINVAL;
@@ -638,6 +724,9 @@ static irqreturn_t mdm_errfatal(int irq, void *dev_id)
 		(gpio_get_value(mdm_drv->mdm2ap_status_gpio) == 1)) {
 		pr_info("%s: Received err fatal from mdm id %d\n",
 				__func__, mdev->mdm_data.device_id);
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+                mdm2ap_errfatal_error_timer = 3;
+#endif
 		mdm_start_ssr(mdev);
 	}
 	return IRQ_HANDLED;
@@ -736,13 +825,25 @@ static irqreturn_t mdm_pblrdy_change(int irq, void *dev_id)
 {
 	struct mdm_modem_drv *mdm_drv;
 	struct mdm_device *mdev = (struct mdm_device *)dev_id;
+	int pblrdy;
+
 	if (!mdev)
 		return IRQ_HANDLED;
 
 	mdm_drv = &mdev->mdm_data;
+
+	pblrdy = gpio_get_value(mdm_drv->mdm2ap_pblrdy);
+
 	pr_info("%s: mdm id %d: pbl ready:%d\n",
 			__func__, mdev->mdm_data.device_id,
-			gpio_get_value(mdm_drv->mdm2ap_pblrdy));
+			pblrdy);
+
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	if(pblrdy == 1) {
+		modem_boot_check = 0x3;
+		printk("modem_boot_check : %d", modem_boot_check);
+	}
+#endif
 	return IRQ_HANDLED;
 }
 
@@ -768,6 +869,17 @@ static int mdm_subsys_shutdown(const struct subsys_desc *crashed_subsys)
 		msleep(mdm_drv->pdata->ramdump_delay_ms);
 	}
 	if (!mdm_drv->mdm_unexpected_reset_occurred) {
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+		if((mdm2ap_status_error_timer == 3 || mdm2ap_status_error_timer <= 0) &&
+			(mdm2ap_errfatal_error_timer == 3 || mdm2ap_errfatal_error_timer <= 0)) {	
+			update_failure_case();
+		}
+		modem_boot_check = 0x1;
+		printk("%s : mdm2ap_status_error_timer : %d, mdm2ap_errfatal_error_timer : %d\n", 
+			__func__, mdm2ap_status_error_timer, mdm2ap_errfatal_error_timer);
+		mdm2ap_status_error_timer--;
+		mdm2ap_errfatal_error_timer--;
+#endif
 		mdm_ops->reset_mdm_cb(mdm_drv);
 		/* Update gpio configuration to "booting" config. */
 		mdm_update_gpio_configs(mdev, GPIO_UPDATE_BOOTING_CONFIG);
@@ -776,6 +888,86 @@ static int mdm_subsys_shutdown(const struct subsys_desc *crashed_subsys)
 	}
 	return 0;
 }
+
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+void update_failure_case(void)
+{
+	failure_step[failure_step_count % 100] = translate_failure();
+	failure_step_count++;
+	if(failure_step_count == 1) {
+		root_failure_step = failure_step[0];
+	} else {
+		root_failure_step = get_error_step(failure_step, failure_step_count);
+	}
+	printk("root_failure_step : %d\n", root_failure_step);
+}
+
+int translate_failure(void)
+{
+ 	mm_segment_t fs;	
+	int modem_enumeration_step = 0;
+	char *modem_enumeration_path = "/sys/module/usbcore/parameters/modem_enumeration_check";
+	char buf[100];
+	struct file *f;
+	int ret = STEP_ERROR;
+	
+	f = filp_open(modem_enumeration_path, O_RDONLY, 0);
+
+	if (f == NULL) {
+        	printk(KERN_ALERT "filp_open error!!.\n");
+    	} else {
+		// Get current segment descriptor
+		fs = get_fs();
+		// Set segment descriptor associated to kernel space
+		set_fs(get_ds());
+		// Read the file
+		f->f_op->read(f, buf, 100, &f->f_pos);
+		// Restore segment descriptor
+		set_fs(fs);
+		// See what we read from file
+		printk(KERN_INFO "buf:%s\n",buf);
+	}
+
+	modem_enumeration_step = buf[0] - '0';
+
+	printk(KERN_ALERT "modem_enumeration_step : %d, modem_boot_check : %d\n", modem_enumeration_step, modem_boot_check);
+
+	filp_close(f, NULL);
+
+	if(modem_enumeration_step == 0x0) {
+		if(modem_boot_check == 0x1) ret = STEP_PBL_FAIL;
+		if(modem_boot_check == 0x3) ret = STEP_9008_FAIL;
+	} else if (modem_enumeration_step == 0x1) {
+		if(modem_boot_check == 0x3) ret = STEP_UNMEASURABLE_FAIL;
+		if(modem_boot_check == 0x7) ret = STEP_9048_FAIL;
+	} else if (modem_enumeration_step == 0x3) {
+		if(modem_boot_check == 0x7) ret = STEP_CRASH;
+	}
+
+	if (mdm2ap_status_error_timer == 3) ret = STEP_9048_FAIL;      // hardcoding : sometimes mismatched pattern discovered.
+	if (mdm2ap_errfatal_error_timer == 3) ret = STEP_CRASH;	// hardcoding : sometimes mismatched pattern discovered.
+
+	return ret;
+}
+
+int get_error_step(int *phase, int phase_size) 
+{
+	int i=0;
+	int final_result;
+	
+	final_result = phase[0];
+
+	for(i=1; i<phase_size; i++)
+	{
+		if(phase[i] < final_result)
+		{
+			final_result = phase[i];
+		}
+	}
+
+	return final_result;
+}
+#endif
 
 static int mdm_subsys_powerup(const struct subsys_desc *crashed_subsys)
 {
@@ -792,6 +984,18 @@ static int mdm_subsys_powerup(const struct subsys_desc *crashed_subsys)
 
 	if (mdm_drv->pdata->ps_hold_delay_ms > 0)
 		msleep(mdm_drv->pdata->ps_hold_delay_ms);
+
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	if((mdm2ap_status_error_timer == 3 || mdm2ap_status_error_timer <= 0) &&
+		(mdm2ap_errfatal_error_timer == 3 || mdm2ap_errfatal_error_timer <= 0)) {
+		update_failure_case();
+	}
+	modem_boot_check = 0x1;
+	printk("%s : mdm2ap_status_error_timer : %d, mdm2ap_errfatal_error_timer : %d", 
+		__func__, mdm2ap_status_error_timer, mdm2ap_errfatal_error_timer);
+	mdm2ap_status_error_timer--;
+	mdm2ap_errfatal_error_timer--;
+#endif
 
 	mdm_ops->power_on_mdm_cb(mdm_drv);
 	mdm_drv->boot_type = CHARM_NORMAL_BOOT;
@@ -1266,6 +1470,39 @@ static void mdm_modem_shutdown(struct platform_device *pdev)
 	if (GPIO_IS_VALID(mdm_drv->ap2mdm_pmic_pwr_en_gpio))
 		gpio_direction_output(mdm_drv->ap2mdm_pmic_pwr_en_gpio, 0);
 }
+
+// kyle00.choi, 20140411, RF Device Check [START]	
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+char ssr_noti[MAX_SSR_REASON_LEN];
+static void log_modem_sfr(void)
+{
+	u32 size;
+	char *smem_reason, reason[MAX_SSR_REASON_LEN];
+
+	smem_reason = smem_get_entry(SMEM_SSR_REASON_MSS0, &size);
+	if (!smem_reason || !size) {
+		pr_err("GSS subsystem failure reason: (unknown, smem_get_entry failed).\n");
+		return;
+	}
+	if (!smem_reason[0]) {
+		pr_err("GSS subsystem failure reason: (unknown, init string found).\n");
+		return;
+	}
+
+	size = min(size, MAX_SSR_REASON_LEN-1);
+	memcpy(reason, smem_reason, size);
+
+	memcpy(ssr_noti, smem_reason, size);
+	ssr_noti[size] = '\0';
+
+	reason[size] = '\0';
+	pr_err("GSS subsystem failure reason: %s.\n", reason);
+
+	smem_reason[0] = '\0';
+	wmb();
+}
+#endif
+// kyle00.choi, 20140411, RF Device Check [END]
 
 static struct of_device_id mdm_match_table[] = {
 	{.compatible = "qcom,mdm2_modem,mdm2_modem.1"},

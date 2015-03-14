@@ -39,12 +39,24 @@
 #include "acpuclock-krait.h"
 #include "avs.h"
 
+#ifdef CONFIG_LGE_PM_LOW_BATT_CHG
+#include <mach/board_lge.h>
+#endif
+
 /* MUX source selects. */
 #define PRI_SRC_SEL_SEC_SRC	0
 #define PRI_SRC_SEL_HFPLL	1
 #define PRI_SRC_SEL_HFPLL_DIV2	2
 
 #define SECCLKAGD		BIT(4)
+
+int g_speed_bin;
+int g_pvs_bin;
+
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+		|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+int limit_cpufreq = 0;
+#endif
 
 static DEFINE_MUTEX(driver_lock);
 static DEFINE_SPINLOCK(l2_lock);
@@ -490,6 +502,12 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 	bool skip_regulators;
 	int rc = 0;
 
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+		|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+	if(limit_cpufreq) {
+		if(rate > 1242000) rate = 1242000;	
+	}
+#endif
 	if (cpu > num_possible_cpus())
 		return -EINVAL;
 
@@ -873,7 +891,13 @@ static int __cpuinit per_cpu_init(int cpu)
 	}
 
 	acpu_level = find_cur_acpu_level(cpu);
-	if (!acpu_level) {
+#ifdef CONFIG_LGE_PM_LOW_BATT_CHG
+	/* chargerlogo wants min cpu freq */
+	if(!acpu_level || lge_get_charger_logo_state())
+#else
+	if (!acpu_level)
+#endif
+	{
 		acpu_level = find_min_acpu_level();
 		if (!acpu_level) {
 			ret = -ENODEV;
@@ -1050,6 +1074,8 @@ static int __init get_speed_bin(u32 pte_efuse)
 		dev_info(drv.dev, "SPEED BIN: %d\n", speed_bin);
 	}
 
+	g_speed_bin = speed_bin;
+
 	return speed_bin;
 }
 
@@ -1067,6 +1093,8 @@ static int __init get_pvs_bin(u32 pte_efuse)
 	} else {
 		dev_info(drv.dev, "ACPU PVS: %d\n", pvs_bin);
 	}
+
+	g_pvs_bin = pvs_bin;
 
 	return pvs_bin;
 }

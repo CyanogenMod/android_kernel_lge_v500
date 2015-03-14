@@ -1950,7 +1950,7 @@ ppp_receive_mp_frame(struct ppp *ppp, struct sk_buff *skb, struct channel *pch)
 	   before the start of the queue. */
 	if (skb_queue_len(&ppp->mrq) >= PPP_MP_MAX_QLEN) {
 		struct sk_buff *mskb = skb_peek(&ppp->mrq);
-		if (seq_before(ppp->minseq, PPP_MP_CB(mskb)->sequence))
+		if (mskb!=NULL/*WBT*/ && seq_before(ppp->minseq, PPP_MP_CB(mskb)->sequence))
 			ppp->minseq = PPP_MP_CB(mskb)->sequence;
 	}
 

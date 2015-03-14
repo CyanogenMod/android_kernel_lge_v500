@@ -25,6 +25,11 @@
 
 static unsigned int no_data_ports;
 
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY)
+struct gdata_port;
+int atcmd_write_toatd(struct gdata_port *port, struct sk_buff *skb);
+#endif
+
 #define GHSIC_DATA_RMNET_RX_Q_SIZE		50
 #define GHSIC_DATA_RMNET_TX_Q_SIZE		300
 #define GHSIC_DATA_SERIAL_RX_Q_SIZE		10
@@ -118,6 +123,12 @@ struct gdata_port {
 	unsigned int		tx_unthrottled_cnt;
 	unsigned int		tomodem_drp_cnt;
 	unsigned int		unthrottled_pnd_skbs;
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY)
+    struct tty_struct *tty;
+    struct mutex tty_lock;
+    unsigned open_count;
+    bool openclose;
+#endif
 };
 
 static struct {
@@ -239,6 +250,9 @@ static void ghsic_data_write_tohost(struct work_struct *w)
 			dev_kfree_skb_any(skb);
 			break;
 		}
+#if defined(CONFIG_USB_G_LGE_ANDROID) && defined(VERBOSE_DEBUG)
+        print_hex_dump(KERN_DEBUG, "tohost:", DUMP_PREFIX_OFFSET, 16, 1, skb->data, skb->len, 1);
+#endif
 		port->to_host++;
 		if (ghsic_data_fctrl_support &&
 			port->tx_skb_q.qlen <= ghsic_data_fctrl_dis_thld &&
@@ -312,6 +326,20 @@ static void ghsic_data_write_tomdm(struct work_struct *w)
 		pr_debug("%s: port:%p tom:%lu pno:%d\n", __func__,
 				port, port->to_modem, port->port_num);
 
+#if defined(CONFIG_USB_G_LGE_ANDROID) && !defined(CONFIG_LGE_MSM_HSIC_TTY)
+        if (port->port_num == 0) /* modem */
+        {
+            ret = atcmd_write_toatd(port, skb);
+            if (ret == 0) {
+                continue;
+            } else if (ret == -EBUSY) {
+                /*flow control*/
+                port->tx_throttled_cnt++;
+                break;
+            }
+        }
+#endif
+
 		info = (struct timestamp_info *)skb->cb;
 		info->rx_done_sent = get_timestamp();
 		spin_unlock_irqrestore(&port->rx_lock, flags);
@@ -329,6 +357,9 @@ static void ghsic_data_write_tomdm(struct work_struct *w)
 			dev_kfree_skb_any(skb);
 			break;
 		}
+#if defined(CONFIG_USB_G_LGE_ANDROID) && defined(VERBOSE_DEBUG)
+        print_hex_dump(KERN_DEBUG, "tomdm:", DUMP_PREFIX_OFFSET, 16, 1, skb->data, skb->len, 1);
+#endif
 		port->to_modem++;
 	}
 	spin_unlock_irqrestore(&port->rx_lock, flags);

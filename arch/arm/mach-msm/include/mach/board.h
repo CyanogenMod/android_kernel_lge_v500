@@ -213,6 +213,13 @@ enum msm_camera_vreg_name_t {
 	CAM_VIO,
 	CAM_VANA,
 	CAM_VAF,
+/*                                                                                    */	
+	CAM_ISP_CORE,
+	CAM_ISP_HOST,
+	CAM_ISP_RAM,
+	CAM_ISP_CAMIF,
+	CAM_ISP_SYS,
+/*                                                                                    */	
 };
 
 struct msm_camera_sensor_platform_info {
@@ -275,6 +282,7 @@ struct msm_camera_sensor_info {
 	enum msm_sensor_type sensor_type;
 	struct msm_actuator_info *actuator_info;
 	int pmic_gpio_enable;
+	int (*sensor_lcd_gpio_onoff)(int on);
 	struct msm_eeprom_info *eeprom_info;
 };
 
@@ -394,6 +402,58 @@ struct msm_panel_common_pdata {
 	struct msm_bus_scale_pdata *mdp_bus_scale_table;
 #endif
 	int mdp_rev;
+#if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT) || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_HD_PT)
+	void *power_on_set_1;
+	void *power_on_set_2;
+	void *power_on_set_3;
+	void *power_on_set_ief;
+	void *power_off_set_ief;
+
+	ssize_t power_on_set_size_1;
+	ssize_t power_on_set_size_2;
+	ssize_t power_on_set_size_3;
+	ssize_t power_on_set_ief_size;
+	ssize_t power_off_set_ief_size;	
+#elif defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT)
+	void *power_on_set_1;
+	ssize_t power_on_set_size_1;
+#elif defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT) \
+       || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_FHD_INVERSE_PT_PANEL)
+    void *power_on_set_1_old;
+    ssize_t power_on_set_size_1_old; 
+	void *power_on_set_1;
+	ssize_t power_on_set_size_1;
+	void *power_on_set_2;
+	ssize_t power_on_set_size_2;
+#if defined(CONFIG_LGE_R63311_BACKLIGHT_CABC)
+	void *power_on_set_3;
+    ssize_t power_on_set_size_3;
+#endif
+#if defined(CONFIG_LGIT_COLOR_ENGINE_SWITCH)
+	void *color_engine_on;
+	ssize_t color_engine_on_size;
+	void *color_engine_off;
+	ssize_t color_engine_off_size;
+#endif //CONFIG_LGIT_COLOR_ENGINE_SWITCH
+#elif defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WUXGA_PT) ||\
+	defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WUXGA_INVERSE_PT)
+	void *power_on_set_1_old;
+	ssize_t power_on_set_size_1_old;
+	void *power_on_set_1;
+	ssize_t power_on_set_size_1;
+	void *power_on_set_2;
+	ssize_t power_on_set_size_2;
+#if defined(CONFIG_LGE_BACKLIGHT_CABC)
+	void *power_on_set_3_noCABC;
+	ssize_t power_on_set_size_3_noCABC;
+	void *power_on_set_3;
+	ssize_t power_on_set_size_3;
+#endif
+#endif
+	void *power_off_set_1;
+	void *power_off_set_2;
+	ssize_t power_off_set_size_1;
+	ssize_t power_off_set_size_2;
 	u32 ov0_wb_size;  /* overlay0 writeback size */
 	u32 ov1_wb_size;  /* overlay1 writeback size */
 	u32 mem_hid;
@@ -401,6 +461,7 @@ struct msm_panel_common_pdata {
 	u32 splash_screen_addr;
 	u32 splash_screen_size;
 	char mdp_iommu_split_domain;
+	bool cabc_off;
 };
 
 

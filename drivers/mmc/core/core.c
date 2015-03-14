@@ -60,7 +60,7 @@ static void mmc_clk_scaling(struct mmc_host *host, bool from_wq);
 #define MMC_BKOPS_MAX_TIMEOUT	(30 * 1000) /* max time to wait in ms */
 
 /* Flushing a large amount of cached data may take a long time. */
-#define MMC_FLUSH_REQ_TIMEOUT_MS 30000 /* msec */
+#define MMC_FLUSH_REQ_TIMEOUT_MS 90000 /* msec */
 
 static struct workqueue_struct *workqueue;
 
@@ -880,7 +880,12 @@ void mmc_set_data_timeout(struct mmc_data *data, const struct mmc_card *card)
 			 */
 			limit_us = 3000000;
 		else
+#ifdef CONFIG_MACH_LGE
+            /*                              */
+            limit_us = 300000;
+#else
 			limit_us = 100000;
+#endif
 
 		/*
 		 * SDHC cards always use these fixed values.
@@ -3189,6 +3194,11 @@ int mmc_pm_notify(struct notifier_block *notify_block,
 		}
 		host->rescan_disable = 0;
 		spin_unlock_irqrestore(&host->lock, flags);
+	#ifdef CONFIG_BCMDHD_MODULE
+	#define MMC_INDEX_BRCM_WIFI 2
+	/* This patch is for nonremovable 0 case of BCM WiFi */
+		if( host->index != MMC_INDEX_BRCM_WIFI )
+	#endif //CONFIG_BCMDHD_MODULE
 		mmc_detect_change(host, 0);
 
 	}

@@ -90,6 +90,9 @@
 #include <linux/usb/input.h>
 #include <linux/power_supply.h>
 #include <asm/unaligned.h>
+# ifndef LINUX_VERSION_CODE
+# include <linux/version.h>
+# endif
 
 /*
  * Version Information
@@ -122,6 +125,7 @@ struct wacom {
 		u8 hlv;       /* status led brightness button pressed (1..127) */
 		u8 img_lum;   /* OLED matrix display brightness */
 	} led;
+	bool led_initialized;
 	struct power_supply battery;
 };
 
@@ -135,6 +139,6 @@ extern const struct usb_device_id wacom_ids[];
 
 void wacom_wac_irq(struct wacom_wac *wacom_wac, size_t len);
 void wacom_setup_device_quirks(struct wacom_features *features);
-void wacom_setup_input_capabilities(struct input_dev *input_dev,
-				    struct wacom_wac *wacom_wac);
+int wacom_setup_input_capabilities(struct input_dev *input_dev,
+				   struct wacom_wac *wacom_wac);
 #endif

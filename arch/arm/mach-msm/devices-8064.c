@@ -138,7 +138,7 @@ struct platform_device msm8064_cpu_slp_status = {
 
 static struct msm_watchdog_pdata msm_watchdog_pdata = {
 	.pet_time = 10000,
-	.bark_time = 11000,
+	.bark_time = 16000,  //adjust bark time  11000,
 	.has_secure = true,
 	.needs_expired_enable = true,
 	.base = MSM_TMR0_BASE + WDT0_OFFSET,
@@ -323,6 +323,48 @@ struct platform_device apq8064_device_qup_i2c_gsbi3 = {
 	.resource	= resources_qup_i2c_gsbi3,
 };
 
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER) || (defined(CONFIG_MACH_LGE)&& defined (CONFIG_TOUCHSCREEN_S340010_SYNAPTICS_TK))
+static struct resource resources_qup_i2c_gsbi7[] = {
+	{
+		.name	= "gsbi_qup_i2c_addr",
+		.start	= MSM_GSBI7_PHYS,
+		.end	= MSM_GSBI7_PHYS + 4 - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_phys_addr",
+		.start	= MSM_GSBI7_QUP_PHYS,
+		.end	= MSM_GSBI7_QUP_PHYS + MSM_QUP_SIZE - 1,
+		.flags	= IORESOURCE_MEM,
+	},
+	{
+		.name	= "qup_err_intr",
+		.start	= GSBI7_QUP_IRQ,
+		.end	= GSBI7_QUP_IRQ,
+		.flags	= IORESOURCE_IRQ,
+	},
+	{
+		.name	= "i2c_clk",
+		.start	= 85,
+		.end	= 85,
+		.flags	= IORESOURCE_IO,
+	},
+	{
+		.name	= "i2c_sda",
+		.start	= 84,
+		.end	= 84,
+		.flags	= IORESOURCE_IO,
+	},
+};
+
+struct platform_device apq8064_device_qup_i2c_gsbi7 = {
+	.name		= "qup_i2c",
+	.id		= 7,
+	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi7),
+	.resource	= resources_qup_i2c_gsbi7,
+};
+#endif
+
 static struct resource resources_uart_gsbi4[] = {
 	{
 		.start = GSBI4_UARTDM_IRQ,
@@ -413,6 +455,7 @@ static struct resource resources_qup_i2c_gsbi4[] = {
 		.end	= GSBI4_QUP_IRQ,
 		.flags	= IORESOURCE_IRQ,
 	},
+#if !defined(CONFIG_MACH_LGE)
 	{
 		.name	= "i2c_clk",
 		.start	= 11,
@@ -425,6 +468,7 @@ static struct resource resources_qup_i2c_gsbi4[] = {
 		.end	= 10,
 		.flags	= IORESOURCE_IO,
 	},
+#endif
 };
 
 struct platform_device apq8064_device_qup_i2c_gsbi4 = {
@@ -434,6 +478,7 @@ struct platform_device apq8064_device_qup_i2c_gsbi4 = {
 	.resource	= resources_qup_i2c_gsbi4,
 };
 
+#if defined(CONFIG_LGE_BROADCAST_TDMB) || defined(CONFIG_LGE_BROADCAST_ONESEG)
 static struct resource resources_qup_spi_gsbi5[] = {
 	{
 		.name   = "spi_base",
@@ -453,6 +498,45 @@ static struct resource resources_qup_spi_gsbi5[] = {
 		.end    = GSBI5_QUP_IRQ,
 		.flags  = IORESOURCE_IRQ,
 	},
+	{
+		.name = "spi_clk",
+		.start = 54,
+		.end = 54,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_cs",
+		.start = 53,
+		.end = 53,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_miso",
+		.start = 52,
+		.end = 52,
+		.flags = IORESOURCE_IO,
+	},
+	{
+		.name = "spi_mosi",
+		.start = 51,
+		.end =51,
+		.flags = IORESOURCE_IO,
+	},
+
+	/* For DMA enabled */
+	{ 
+		.name = "spidm_channels", 
+		.start = 6,
+		.end   = 7,
+		.flags = IORESOURCE_DMA, 
+	}, 
+	{ 
+		.name = "spidm_crci", 
+		.start = 9, 
+		.end = 10, 
+		.flags = IORESOURCE_DMA, 
+	},
+
 };
 
 struct platform_device apq8064_device_qup_spi_gsbi5 = {
@@ -461,6 +545,62 @@ struct platform_device apq8064_device_qup_spi_gsbi5 = {
 	.num_resources	= ARRAY_SIZE(resources_qup_spi_gsbi5),
 	.resource	= resources_qup_spi_gsbi5,
 };
+#endif /*                      */
+#if defined( CONFIG_LGE_FELICA ) || defined(CONFIG_LGE_NFC_SONY_CXD2235AGG)
+static struct resource resources_uart_gsbi6[] = {
+    {
+        .start  = GSBI6_UARTDM_IRQ,
+        .end    = GSBI6_UARTDM_IRQ,
+        .flags  = IORESOURCE_IRQ,
+    },
+    {
+        .start  = MSM_UART6DM_PHYS,
+        .end    = MSM_UART6DM_PHYS + PAGE_SIZE - 1,
+        .name   = "uartdm_resource",
+        .flags  = IORESOURCE_MEM,
+    },
+    {
+        .start  = MSM_GSBI6_PHYS,
+        .end    = MSM_GSBI6_PHYS + PAGE_SIZE - 1,
+        .name   = "gsbi_resource",
+        .flags  = IORESOURCE_MEM,
+    },
+};
+
+struct platform_device apq8064_device_felica_gsbi6 = {
+       .name   = "msm_serial_hsl",
+       .id     = 2,
+       .num_resources  = ARRAY_SIZE(resources_uart_gsbi6),
+       .resource       = resources_uart_gsbi6,
+};
+
+static struct resource resources_uart_felica_gsbi3[] = {
+    {
+        .start  = GSBI3_UARTDM_IRQ,
+        .end    = GSBI3_UARTDM_IRQ,
+        .flags  = IORESOURCE_IRQ,
+    },
+    {
+        .start  = MSM_UART3DM_PHYS,
+        .end    = MSM_UART3DM_PHYS + PAGE_SIZE - 1,
+        .name   = "uartdm_resource",
+        .flags  = IORESOURCE_MEM,
+    },
+    {
+        .start  = MSM_GSBI3_PHYS,
+        .end    = MSM_GSBI3_PHYS + PAGE_SIZE - 1,
+        .name   = "gsbi_resource",
+        .flags  = IORESOURCE_MEM,
+    },
+};
+
+struct platform_device apq8064_device_felica_gsbi3 = {
+       .name   = "msm_serial_hsl",
+       .id     = 2,
+       .num_resources  = ARRAY_SIZE(resources_uart_felica_gsbi3),
+       .resource       = resources_uart_felica_gsbi3,
+};
+#endif /*                   */
 
 static struct resource resources_qup_i2c_gsbi5[] = {
 	{
@@ -502,6 +642,19 @@ struct platform_device mpq8064_device_qup_i2c_gsbi5 = {
 	.resource	= resources_qup_i2c_gsbi5,
 };
 
+/* jinyoun.park*/
+#if defined(CONFIG_BQ24262_CHARGER)
+struct platform_device apq8064_device_qup_i2c_gsbi5 = {
+	.name		= "qup_i2c",
+	.id		= 5,
+	.num_resources	= ARRAY_SIZE(resources_qup_i2c_gsbi5),
+	.resource	= resources_qup_i2c_gsbi5,
+};
+#endif
+/* jinyoun.park*/
+
+//                                             
+//ADD: 0019632: [F200][BT] Bluetooth board bring-up
 /* GSBI 6 used into UARTDM Mode */
 static struct resource msm_uart_dm6_resources[] = {
 	{
@@ -522,8 +675,8 @@ static struct resource msm_uart_dm6_resources[] = {
 		.flags  = IORESOURCE_MEM,
 	},
 	{
-		.start  = DMOV_MPQ8064_HSUART_GSBI6_TX_CHAN,
-		.end    = DMOV_MPQ8064_HSUART_GSBI6_RX_CHAN,
+		.start  = 8,
+		.end    = 9,
 		.name   = "uartdm_channels",
 		.flags  = IORESOURCE_DMA,
 	},
@@ -568,7 +721,7 @@ static struct resource resources_uart_gsbi7[] = {
 
 struct platform_device apq8064_device_uart_gsbi7 = {
 	.name	= "msm_serial_hsl",
-	.id	= 0,
+	.id	= 1,
 	.num_resources	= ARRAY_SIZE(resources_uart_gsbi7),
 	.resource	= resources_uart_gsbi7,
 };
@@ -877,6 +1030,29 @@ struct platform_device mpq_cpudai_mi2s_tx = {
 	},
 };
 
+struct msm_mi2s_pdata apq_mi2s_data = {
+	.rx_sd_lines = MSM_MI2S_SD0,
+	.tx_sd_lines = MSM_MI2S_SD3,
+};
+
+struct platform_device apq_cpudai_mi2s = {
+	.name	= "msm-dai-q6-mi2s",
+	.id	= -1,
+	.dev = {
+		.platform_data = &apq_mi2s_data,
+	},
+};
+
+struct platform_device apq_cpudai_i2s_rx = {
+	.name	= "msm-dai-q6",
+	.id	= PRIMARY_I2S_RX,
+};
+
+struct platform_device apq_cpudai_i2s_tx = {
+	.name	= "msm-dai-q6",
+	.id	= PRIMARY_I2S_TX,
+};
+
 struct platform_device apq_cpu_fe = {
 	.name	= "msm-dai-fe",
 	.id	= -1,
@@ -1118,6 +1294,23 @@ static struct resource resources_hsusb_host[] = {
 	},
 };
 
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || \
+    defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || \
+    defined(CONFIG_MACH_APQ8064_OMEGA_KR) || \
+    defined(CONFIG_MACH_APQ8064_GKATT) || \
+    defined(CONFIG_MACH_APQ8064_GVDCM) || \
+    defined(CONFIG_MACH_APQ8064_GV_KR) || \
+    defined(CONFIG_MACH_APQ8064_GKGLOBAL) || \
+    defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV) || \
+    defined(CONFIG_MACH_APQ8064_L05E)
+	
+#define HSIC_MDM2AP_PBLRDY       81
+#else	// for J1 project
+#define HSIC_MDM2AP_PBLRDY	 46
+#endif
+#define AP2MDM_WAKEUP       35
+#define MDM2AP_ERRFATAL     19
+
 static struct resource resources_hsic_host[] = {
 	{
 		.start	= 0x12510000,
@@ -1139,6 +1332,24 @@ static struct resource resources_hsic_host[] = {
 		.start	= 47,
 		.end	= 47,
 		.name	= "wakeup",
+		.flags	= IORESOURCE_IO,
+	},
+	{
+		.start	= AP2MDM_WAKEUP,
+		.end	= AP2MDM_WAKEUP,
+		.name	= "AP2MDM_HSICRDY",
+		.flags	= IORESOURCE_IO,
+	},
+	{
+		.start	= MDM2AP_ERRFATAL,
+		.end	= MDM2AP_ERRFATAL,
+		.name	= "MDM2AP_ERRFATAL",
+		.flags	= IORESOURCE_IO,
+	},
+	{
+		.start	= HSIC_MDM2AP_PBLRDY,
+		.end	= HSIC_MDM2AP_PBLRDY,
+		.name	= "MDM2AP_PBLRDY",
 		.flags	= IORESOURCE_IO,
 	},
 };
@@ -2627,7 +2838,9 @@ static uint16_t msm_mpm_irqs_m2a[MSM_MPM_NR_MPM_IRQS] __initdata = {
 	[53] = MSM_GPIO_TO_INT(10),
 	[54] = MSM_GPIO_TO_INT(81),
 	[55] = MSM_GPIO_TO_INT(6),
-	[56] = MSM_GPIO_TO_INT(82),
+#if defined(CONFIG_SWITCH_FSA8008) || defined(CONFIG_MACH_APQ8064_L05E)
+	[56] = MSM_GPIO_TO_INT(82),  /* add for FSA8008D's ear sense GPIO */
+#endif
 };
 
 static uint16_t msm_mpm_bypassed_apps_irqs[] __initdata = {
@@ -2685,7 +2898,7 @@ struct msm_mpm_device_data apq8064_mpm_dev_data __initdata = {
 #define I2S_AP2MDM_SOFT_RESET	0
 #define AP2MDM_WAKEUP			35
 #define I2S_AP2MDM_WAKEUP		44
-#define MDM2AP_PBLRDY			46
+#define MDM2AP_PBLRDY			81
 #define AMDM2AP_PBLRDY_DSDA2	31
 #define I2S_MDM2AP_PBLRDY		81
 

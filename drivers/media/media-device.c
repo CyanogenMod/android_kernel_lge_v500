@@ -210,12 +210,18 @@ static long media_device_setup_link(struct media_device *mdev,
 	return ret;
 }
 
+    /*                                                                                             */
+int sub_cam_id_for_keep_screen_on = -1;
+    /*                                                                                             */
 static long media_device_ioctl(struct file *filp, unsigned int cmd,
 			       unsigned long arg)
 {
 	struct media_devnode *devnode = media_devnode_data(filp);
 	struct media_device *dev = to_media_device(devnode);
 	long ret;
+    /*                                                                                             */
+	void __user *argp = (void __user *)arg;
+    /*                                                                                             */
 
 	switch (cmd) {
 	case MEDIA_IOC_DEVICE_INFO:
@@ -242,6 +248,15 @@ static long media_device_ioctl(struct file *filp, unsigned int cmd,
 		mutex_unlock(&dev->graph_mutex);
 		break;
 
+    /*                                                                                             */
+	case MEDIA_IOC_SUB_CAM_ID:
+		if (copy_from_user(&sub_cam_id_for_keep_screen_on, argp, sizeof(sub_cam_id_for_keep_screen_on))) {
+			ret = -EFAULT;
+		} else {
+			ret = 0;
+		}
+		break;
+    /*                                                                                             */
 	default:
 		ret = -ENOIOCTLCMD;
 	}

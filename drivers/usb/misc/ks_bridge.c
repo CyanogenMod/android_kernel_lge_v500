@@ -29,6 +29,7 @@
 #include <linux/miscdevice.h>
 #include <linux/list.h>
 #include <linux/wait.h>
+#include <linux/poll.h>
 
 #define DRIVER_DESC	"USB host ks bridge driver"
 #define DRIVER_VERSION	"1.0"
@@ -377,6 +378,27 @@ static int ksb_fs_open(struct inode *ip, struct file *fp)
 	return 0;
 }
 
+static unsigned int ksb_fs_poll(struct file *file, poll_table *wait)
+{
+	struct ks_bridge	*ksb = file->private_data;
+	unsigned long		flags;
+	int			ret = 0;
+
+	if (!test_bit(USB_DEV_CONNECTED, &ksb->flags))
+		return POLLERR;
+
+	poll_wait(file, &ksb->ks_wait_q, wait);
+	if (!test_bit(USB_DEV_CONNECTED, &ksb->flags))
+		return POLLERR;
+
+	spin_lock_irqsave(&ksb->lock, flags);
+	if (!list_empty(&ksb->to_ks_list))
+		ret = POLLIN | POLLRDNORM;
+	spin_unlock_irqrestore(&ksb->lock, flags);
+
+	return ret;
+}
+
 static int ksb_fs_release(struct inode *ip, struct file *fp)
 {
 	struct ks_bridge	*ksb = fp->private_data;
@@ -396,6 +418,7 @@ static const struct file_operations ksb_fops = {
 	.write = ksb_fs_write,
 	.open = ksb_fs_open,
 	.release = ksb_fs_release,
+	.poll = ksb_fs_poll,
 };
 
 static struct miscdevice ksb_fboot_dev[] = {
@@ -641,6 +664,9 @@ ksb_usb_probe(struct usb_interface *ifc, const struct usb_device_id *id)
 		if (ifc_num != 2)
 			return -ENODEV;
 		ksb = __ksb[EFS_HSIC_BRIDGE_INDEX];
+#ifdef CONFIG_USB_G_LGE_ANDROID
+        ifc->needs_remote_wakeup = 1;
+#endif
 		break;
 	case 0x9079:
 		if (ifc_num != 2)
@@ -707,10 +733,14 @@ ksb_usb_probe(struct usb_interface *ifc, const struct usb_device_id *id)
 	ksb->fs_dev = *mdev;
 	misc_register(&ksb->fs_dev);
 
+#ifdef CONFIG_USB_G_LGE_ANDROID
+    usb_enable_autosuspend(ksb->udev);
+#else
 	if (device_can_wakeup(&ksb->udev->dev)) {
 		ifc->needs_remote_wakeup = 1;
 		usb_enable_autosuspend(ksb->udev);
 	}
+#endif
 
 	dev_dbg(&udev->dev, "usb dev connected");
 

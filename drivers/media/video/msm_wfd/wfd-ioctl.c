@@ -501,6 +501,12 @@ int wfd_vidbuf_buf_init(struct vb2_buffer *vb)
 		(struct wfd_device *)video_drvdata(priv_data);
 	struct mem_info *minfo = vb2_plane_cookie(vb, 0);
 	struct mem_region mregion;
+/*                                                         */
+	if (minfo == NULL) {
+		WFD_MSG_ERR("wfd_vidbuf_buf_init has been failed, since allocation failed");
+		return -EINVAL;
+	}
+/*                                                         */
 	mregion.fd = minfo->fd;
 	mregion.offset = minfo->offset;
 	mregion.cookie = (u32)vb;
@@ -712,6 +718,12 @@ void wfd_vidbuf_buf_queue(struct vb2_buffer *vb)
 	struct wfd_inst *inst = (struct wfd_inst *)priv_data->private_data;
 	struct mem_region mregion;
 	struct mem_info *minfo = vb2_plane_cookie(vb, 0);
+/*                                                         */
+	if (minfo == NULL) {
+		WFD_MSG_ERR("wfd_vidbuf_buf_init has been failed, since allocation failed");
+		return;
+	}
+/*                                                         */
 	mregion.fd = minfo->fd;
 	mregion.offset = minfo->offset;
 	mregion.cookie = (u32)vb;

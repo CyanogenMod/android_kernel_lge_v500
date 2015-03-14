@@ -46,6 +46,20 @@ int power_supply_set_current_limit(struct power_supply *psy, int limit)
 }
 EXPORT_SYMBOL_GPL(power_supply_set_current_limit);
 
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+int power_supply_set_present(struct power_supply *psy, bool enable)
+{
+	const union power_supply_propval ret = {enable,};
+
+	if (psy->set_property)
+		return psy->set_property(psy, POWER_SUPPLY_PROP_PRESENT,
+								&ret);
+
+	return -ENXIO;
+}
+EXPORT_SYMBOL_GPL(power_supply_set_present);
+#endif
+
 /**
  * power_supply_set_online - set online state of the power supply
  * @psy:	the power supply to control
@@ -145,7 +159,9 @@ static void power_supply_changed_work(struct work_struct *work)
 		class_for_each_device(power_supply_class, NULL, psy,
 				      __power_supply_changed_work);
 
+#ifndef CONFIG_MACH_APQ8064_ALTEV
 		power_supply_update_leds(psy);
+#endif
 
 		kobject_uevent(&psy->dev->kobj, KOBJ_CHANGE);
 		spin_lock_irqsave(&psy->changed_lock, flags);

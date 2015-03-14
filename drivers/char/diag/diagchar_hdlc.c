@@ -206,6 +206,9 @@ int diag_hdlc_decode(struct diag_hdlc_decode_type *hdlc)
 							  ^ ESC_MASK;
 				}
 			} else if (src_byte == CONTROL_CHAR) {
+				if(len == 0){
+					continue;
+				}
 				dest_ptr[len++] = src_byte;
 				/*
 				 * If this is the first byte in the message,

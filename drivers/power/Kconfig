@@ -443,4 +443,158 @@ config AB8500_BATTERY_THERM_ON_BATCTRL
 	  Say Y to enable battery temperature measurements using
 	  thermistor connected on BATCTRL ADC.
 
+config LGE_PM
+	tristate "PM8921 LGE Feature"
+	depends on MFD_PM8921_CORE
+	default n
+	help
+	  Say Y here to enable support for pm8921 chip lge feature
+
+config LGE_PM_DEBUG
+	depends on LGE_PM
+	default n
+	bool "LGE Power debug"
+	help
+	  Say Y here to enable debugging messages for LGE power supply class
+	  and drivers.
+config LGE_PM_EXT_GAUGE
+	depends on LGE_PM
+	default n
+	bool "LGE Power External Fuel-Gauge"
+	help
+	  Say Y here to enable external fuel-gauge routines.
+
+config LGE_PM_CHARGING_CHARGERLOGO
+	bool "LGE Chargerlogo Feature"
+	depends on LGE_PM
+	help
+	  Say Y here to enable LGE charger logo
+
+config BATTERY_MAX17043
+	tristate "Maxim MAX17043 Fuel Gauge"
+	depends on I2C && LGE_PM
+	default n
+	select LGE_PM_EXT_GAUGE
+	help
+	  MAX17043 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The MAX17043 is configured
+	  to operate with a single lithium cell
+
+config BATTERY_MAX17047
+	tristate "Maxim MAX17047 Fuel Gauge"
+	depends on I2C && LGE_PM
+	default n
+	select LGE_PM_EXT_GAUGE
+	help
+	  MAX17047 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The MAX17047 is configured
+	  to operate with a single lithium cell
+
+config BATTERY_MAX17048
+	tristate "Maxim MAX17048/17049 Fuel Gauge"
+	depends on I2C && LGE_PM
+	default n
+	select LGE_PM_EXT_GAUGE
+	help
+	  MAX17048 is fuel-gauge systems for lithium-ion (Li+) batteries
+	  in handheld and portable equipment. The MAX17048 is configured
+	  to operate with a single lithium cell, and MAX17049 for two lithium
+	  cells.
+
+config BQ24262_CHARGER
+	tristate "TI BQ24262 Charger"
+	depends on I2C && LGE_PM
+	default n
+	help
+	  TI BQ24262 Charger.  
+
+config LGE_PM_BATTERY_ID_CHECKER
+	depends on LGE_PM
+	default n
+	bool "LGE PM BATTERY ID CHECKER"
+	help
+	  LGE PM Battery Id Checker Configuration
+
+config LGE_CHARGER_TEMP_SCENARIO
+	depends on LGE_PM
+	default n
+	bool "LGE CHARGER TEMP SCENARIO Configuration"
+	help
+	  LGE CHARGER TEMP SCENARIO Configuration
+
+config LGE_WIRELESS_CHARGER
+	depends on LGE_PM
+	default n
+	bool "LGE WIRELESS CHARGER Configuration"
+	help
+	  LGE WIRELESS CHARGER Configuration
+
+config LGE_PM_ADP_CHG
+	depends on LGE_PM
+	default n
+	bool "LGE PM ADAPTIVE USB CHARGING CURRENT"
+	help
+	  Say Y here to enable support for LGE adaptive usb charging current
+
+config LGE_PM_LOW_BATT_CHG
+	depends on LGE_PM
+	default n
+	bool "LGE LOW VOLTAGE BATTERY CHARGING Configuration"
+	help
+	  LGE LOW VOLTAGE BATTERY CHARGING Configuration
+
+config LGE_PM_REMOVE_BATT
+	depends on LGE_PM
+	default n
+	bool "LGE PM REMOVABLE BATTERY Feature"
+	help
+	  Say Y here to enable support for LGE removable battery feature
+
+config LGE_PM_PWM_LED
+	depends on LGE_PM
+	default n
+	bool "LGE PM PWM LED Configuration"
+	help
+	  LGE PM PWM LED Configuration
+
+config WIRELESS_CHARGER
+	bool "Wireless Charger Configuration"
+	default n
+	help
+	  wireless charger configuration
+
+config LGE_WIRELESS_CHARGER
+	depends on LGE_PM && WIRELESS_CHARGER
+	default n
+	bool "LGE WIRELESS CHARGER Configuration"
+	help
+	  LGE WIRELESS CHARGER Configuration
+
+config BQ51051B_CHARGER
+	bool "TI BQ51051B Wireless Charging control Driver"
+	depends on WIRELESS_CHARGER
+	help
+	  TI BQ51051B wireless charging control driver
+
+config WIRELESS_CHARGER_TEMP_SCENARIO
+	bool "Wireless Charger temp scenario"
+	depends on WIRELESS_CHARGER
+	default n
+	help
+	  Wireless Charger temp scenario.
+
+config BATTERY_TEMP_CONTROL
+	default n
+	bool "Battery Temperature Control Configuration"
+	help
+	  Say Y to enable battery temperature control for safty.
+	  It controls charging current depending on battery temperature.
+
+config LGE_DOCK
+	depends on PM8921_CHARGER
+	default n
+	bool "LGE DOCK Check routine"
+	help
+	  Say Y to enable LG electronics Dock Chager connection sceanario
+
 endif # POWER_SUPPLY

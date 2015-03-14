@@ -1,0 +1,31 @@
+config BOARD_HEADER_FILE
+	string "LGE board specific header file name"
+	default ""
+
+config MACH_APQ8064_GK_KR
+	depends on ARCH_APQ8064
+	select MACH_LGE
+		bool "APQ8064 GK SKT KT LGU"
+	help
+	  Support for the LGE GK device.
+
+config MACH_APQ8064_AWIFI
+	depends on ARCH_APQ8064
+	select MACH_LGE
+		bool "APQ8064 A WiFi Only"
+	help
+	  Support for the LGE A WiFi only device.
+
+config MACH_APQ8064_AWIFI070U
+	depends on ARCH_APQ8064
+	select MACH_LGE
+		bool "APQ8064 A 070 Only"
+	help
+	  Support for the LGE A 070 only device.
+
+config MACH_APQ8064_ALTEV
+	depends on ARCH_APQ8064
+	select MACH_LGE
+		bool "APQ8064 A VZW LTE Only"
+	help
+	  Support for the LGE A VZW LTE only device.

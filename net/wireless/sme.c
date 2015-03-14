@@ -690,7 +690,14 @@ void __cfg80211_disconnected(struct net_device *dev, const u8 *ie,
 		return;
 
 #ifndef CONFIG_CFG80211_ALLOW_RECONNECT
+//                                                                                     
+#if defined ( CONFIG_BCMDHD ) || defined( CONFIG_BCMDHD_MODULE )
+	if ((wdev->sme_state != CFG80211_SME_CONNECTED) 
+		&&  (reason != WLAN_REASON_UNSPECIFIED))
+#else
 	if (wdev->sme_state != CFG80211_SME_CONNECTED)
+#endif
+//                                                                                     
 		return;
 #endif
 

@@ -69,6 +69,20 @@ void irlmp_add_discovery(hashbin_t *cachelog, discovery_t *new)
 
 	spin_lock_irqsave(&cachelog->hb_spinlock, flags);
 
+/*           
+                                         
+                                                               
+                                                  
+                                                                     
+   
+                                                                     
+                                 
+ */
+#ifdef CONFIG_LGE_IRDA
+	if (new->data.daddr == new->data.saddr ) {
+		goto add_discovery_out;
+	}
+#endif
 	/*
 	 * Remove all discoveries of devices that has previously been
 	 * discovered on the same link with the same name (info), or the
@@ -101,6 +115,9 @@ void irlmp_add_discovery(hashbin_t *cachelog, discovery_t *new)
 	/* Insert the new and updated version */
 	hashbin_insert(cachelog, (irda_queue_t *) new, new->data.daddr, NULL);
 
+#ifdef CONFIG_LGE_IRDA
+add_discovery_out:
+#endif
 	spin_unlock_irqrestore(&cachelog->hb_spinlock, flags);
 }
 

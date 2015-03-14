@@ -1,0 +1,22 @@
+config BOARD_HEADER_FILE
+	string "LGE board specific header file name"
+	default ""
+
+config MACH_APQ8064_GVAR_CMCC
+	depends on ARCH_APQ8064
+	select MACH_LGE
+		bool "APQ064 GVAR CMSS"
+	help
+	  Support for the LGE GVAR device.
+
+config LGE_USB_DIAG_DISABLE
+	default n
+	bool "Disable diag function"
+	help
+	 Provide method of diag enable or disable
+
+config RTC_PWROFF_ALARM
+	default y
+	bool "RTC pwroff alram set"
+	help
+	 Provide RTC power off alram

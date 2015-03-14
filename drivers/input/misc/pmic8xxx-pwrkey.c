@@ -51,6 +51,10 @@ static irqreturn_t pwrkey_press_irq(int irq, void *_pwrkey)
 		pwrkey->press = true;
 	}
 
+#ifdef CONFIG_LGE_PM
+	pr_info("[key] power key pressed\n");
+#endif
+
 	input_report_key(pwrkey->pwr, KEY_POWER, 1);
 	input_sync(pwrkey->pwr);
 
@@ -68,6 +72,10 @@ static irqreturn_t pwrkey_release_irq(int irq, void *_pwrkey)
 	} else {
 		pwrkey->press = false;
 	}
+
+#ifdef CONFIG_LGE_PM
+	pr_info("[key] power key released\n");
+#endif
 
 	input_report_key(pwrkey->pwr, KEY_POWER, 0);
 	input_sync(pwrkey->pwr);

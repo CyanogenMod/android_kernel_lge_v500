@@ -63,15 +63,28 @@ obj-$(CONFIG_TSIF_CHRDEV) += tsif_chrdev.o
 obj-$(CONFIG_TSPP) += tspp.o
 obj-$(CONFIG_HAPTIC_ISA1200)		+= isa1200.o
 obj-$(CONFIG_PMIC8058_PWM) += pmic8058-pwm.o
+ifeq ($(CONFIG_MACH_APQ8064_AWIFI),y)
+obj-$(CONFIG_PMIC8XXX_VIBRATOR) += pm8xxx-vibrator_lge.o
+else ifeq ($(CONFIG_MACH_APQ8064_ALTEV),y)
+obj-$(CONFIG_PMIC8XXX_VIBRATOR) += pm8xxx-vibrator_lge.o
+else
 obj-$(CONFIG_PMIC8XXX_VIBRATOR) += pm8xxx-vibrator.o
+endif
 obj-$(CONFIG_PMIC8XXX_NFC) += pm8xxx-nfc.o
 obj-$(CONFIG_PMIC8XXX_UPL) += pm8xxx-upl.o
 obj-$(CONFIG_ANDROID_VIBRATOR)	+= android_vibrator.o
+obj-$(CONFIG_ANDROID_SW_IRRC)	+= android_irrc.o
 obj-$(CONFIG_MSM_MEMORY_LOW_POWER_MODE_SUSPEND_DEEP_POWER_DOWN) \
 	+= msm_migrate_pages.o
 obj-$(CONFIG_PMIC8058_XOADC) += pmic8058-xoadc.o
 obj-$(CONFIG_QSEECOM) += qseecom.o
 obj-$(CONFIG_QFP_FUSE) += qfp_fuse.o
+ifeq ($(CONFIG_MACH_APQ8064_AWIFI),y)
+obj-y += tspdrv_awifi/
+else ifeq ($(CONFIG_MACH_APQ8064_ALTEV),y)
+obj-y += tspdrv_awifi/
+else
 obj-y += tspdrv/
+endif
 obj-$(CONFIG_BU52031NVX) += pm8xxx-cradle.o
 obj-$(CONFIG_SLIMPORT_ANX7808)	+= slimport_anx7808/

@@ -33,16 +33,18 @@
 #define PANIC_HANDLER_NAME "panic-handler"
 #define PANIC_DUMP_CONSOLE 0
 #define PANIC_MAGIC_KEY    0x12345678
-#define NORMAL_MAGIC_KEY   0x4E4F524D
 #define CRASH_ARM9         0x87654321
 #define CRASH_REBOOT       0x618E1000
+#define CRASH_HANDLER_ENABLE 0x63680001
 
 struct crash_log_dump {
 	unsigned int magic_key;
+	unsigned int enable;
 	unsigned int size;
 	unsigned char buffer[0];
 };
 
+static int crash_handler_enable = 0;
 static struct crash_log_dump *crash_dump_log;
 static unsigned int crash_buf_size = 0;
 static int crash_store_flag = 0;
@@ -83,6 +85,13 @@ static int gen_panic(const char *val, struct kernel_param *kp)
 }
 module_param_call(gen_panic, gen_panic, param_get_bool,
 		&dummy_arg, S_IWUSR | S_IRUGO);
+
+static int gen_modem_panic(const char *val, struct kernel_param *kp)
+{
+    subsystem_restart("external_modem");
+    return 0;
+}
+module_param_call(gen_modem_panic, gen_modem_panic, param_get_bool, &dummy_arg, S_IWUSR | S_IRUGO);
 
 static int gen_mdm_ssr(const char *val, struct kernel_param *kp)
 {
@@ -161,8 +170,7 @@ module_param_call(gen_hw_reset, gen_hw_reset, param_get_bool,
 
 void set_crash_store_enable(void)
 {
-	if (crash_dump_log->magic_key == NORMAL_MAGIC_KEY)
-		crash_store_flag = 1;
+	crash_store_flag = 1;
 	return;
 }
 
@@ -198,6 +206,39 @@ void store_crash_log(char *p)
 
 	return;
 }
+
+static int __init check_crash_handler(char *reset_mode)
+{
+	if (!strncmp(reset_mode, "0x63680001", 10)) {
+		crash_handler_enable = 1;
+		printk(KERN_INFO "crash_handler_enable in user mode\n");
+	}
+	return 1;
+}
+__setup("lge.crash_enable=", check_crash_handler);
+
+static int crash_handler_enable_set(const char *val, struct kernel_param *kp)
+{
+	int ret;
+	ret = param_set_int(val, kp);
+	if (ret)
+		return ret;
+
+	if (crash_handler_enable) {
+		if (crash_dump_log)
+			crash_dump_log->enable = CRASH_HANDLER_ENABLE;
+		pr_info("demigod crash handler activated\n");
+	} else {
+		if (crash_dump_log)
+			crash_dump_log->enable = 0;
+		pr_info("demigod crash handler deactivated\n");
+	}
+
+	return 0;
+}
+module_param_call(crash_handler_enable, crash_handler_enable_set, param_get_int,
+		&crash_handler_enable, S_IRUGO|S_IWUSR|S_IWGRP);
+
 
 #ifdef CONFIG_CPU_CP15_MMU
 void lge_save_ctx(struct pt_regs* regs, unsigned int ctrl,
@@ -263,7 +304,7 @@ static int __init panic_handler_probe(struct platform_device *pdev)
 
 	crash_dump_log = (struct crash_log_dump *)buffer;
 	memset(crash_dump_log, 0, buffer_size);
-	crash_dump_log->magic_key = NORMAL_MAGIC_KEY;
+	crash_dump_log->magic_key = 0;
 	crash_dump_log->size = 0;
 	crash_buf_size = buffer_size - offsetof(struct crash_log_dump, buffer);
 #ifdef CONFIG_CPU_CP15_MMU

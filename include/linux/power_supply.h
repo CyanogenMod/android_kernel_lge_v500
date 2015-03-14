@@ -129,6 +129,44 @@ enum power_supply_property {
 	POWER_SUPPLY_PROP_MODEL_NAME,
 	POWER_SUPPLY_PROP_MANUFACTURER,
 	POWER_SUPPLY_PROP_SERIAL_NUMBER,
+/* [START] sungsookim */
+#ifdef CONFIG_LGE_PM
+#ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
+    POWER_SUPPLY_PROP_BATTERY_ID_CHECK,
+#endif
+	POWER_SUPPLY_PROP_PSEUDO_BATT,
+    POWER_SUPPLY_PROP_BLOCK_CHARGING,
+    POWER_SUPPLY_PROP_EXT_PWR_CHECK,
+/*                                                         */
+//    POWER_SUPPLY_PROP_BMS_BATT,
+/*                                                         */
+
+/*2012-07-11 Add battery present check in the testmode */
+	POWER_SUPPLY_PROP_REAL_BATT_PRESENT,
+/*2012-07-11 Add battery present check in the testmode */
+#ifdef CONFIG_BATTERY_MAX17047
+/*                                                   */
+    POWER_SUPPLY_PROP_BATTERY_CONDITION,
+    POWER_SUPPLY_PROP_BATTERY_AGE,
+#endif
+#endif
+#if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	POWER_SUPPLY_PROP_VCHG,
+	POWER_SUPPLY_PROP_IUSB,
+#endif
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+	POWER_SUPPLY_PROP_BATT_TEMP_ADC,
+	POWER_SUPPLY_PROP_ORIG_CAPACITY,
+	POWER_SUPPLY_PROP_CABLE_INFO_ADC,
+	POWER_SUPPLY_PROP_REV_ADC,
+	POWER_SUPPLY_PROP_PA_THERM_VAL,
+	POWER_SUPPLY_PROP_PA_THERM_ADC,
+	POWER_SUPPLY_PROP_GET_SET_CUR,
+	POWER_SUPPLY_PROP_VZW_CHG_STATE,
+	POWER_SUPPLY_PROP_CHARGING_ENABLED,
+#endif
+
+/* [END] */
 };
 
 enum power_supply_type {
@@ -140,6 +178,9 @@ enum power_supply_type {
 	POWER_SUPPLY_TYPE_USB_DCP,	/* Dedicated Charging Port */
 	POWER_SUPPLY_TYPE_USB_CDP,	/* Charging Downstream Port */
 	POWER_SUPPLY_TYPE_USB_ACA,	/* Accessory Charger Adapters */
+#ifdef CONFIG_LGE_WIRELESS_CHARGER
+    POWER_SUPPLY_TYPE_WIRELESS,
+#endif
 };
 
 union power_supply_propval {
@@ -216,6 +257,9 @@ extern void power_supply_changed(struct power_supply *psy);
 extern int power_supply_am_i_supplied(struct power_supply *psy);
 extern int power_supply_set_battery_charged(struct power_supply *psy);
 extern int power_supply_set_current_limit(struct power_supply *psy, int limit);
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+extern int power_supply_set_present(struct power_supply *psy, bool enable);
+#endif
 extern int power_supply_set_online(struct power_supply *psy, bool enable);
 extern int power_supply_set_scope(struct power_supply *psy, int scope);
 extern int power_supply_set_charge_type(struct power_supply *psy, int type);
@@ -268,6 +312,10 @@ static inline bool power_supply_is_amp_property(enum power_supply_property psp)
 	case POWER_SUPPLY_PROP_CURRENT_MAX:
 	case POWER_SUPPLY_PROP_CURRENT_NOW:
 	case POWER_SUPPLY_PROP_CURRENT_AVG:
+#if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	case POWER_SUPPLY_PROP_VCHG:
+	case POWER_SUPPLY_PROP_IUSB:
+#endif
 		return 1;
 	default:
 		break;

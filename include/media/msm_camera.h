@@ -1023,8 +1023,29 @@ struct msm_snapshot_pp_status {
 #define CFG_SET_VISION_MODE           55
 #define CFG_SET_VISION_AE             56
 #define CFG_HDR_UPDATE                57
-#define CFG_ACTUAOTOR_REG_INIT        58
-#define CFG_MAX                       59
+/*                                                                         */
+#define CFG_SET_AF_MODE               58     //AF Mode Settings for CE1702 by jungki.kim
+#define CFG_SET_MANUAL_FOCUS_LENGTH   59     //Support Manual Focus by jungki.kim
+#define CFG_SET_LED_FLASH_MODE        60     //Support LED Flash only for CE1702 by jungki.kim
+#define CFG_SET_ANTIBANDING_CE1702    61     //Set Antibanding for CE1702 by jungki.kim
+#define CFG_SET_STOP_AF               62     //Stop AF for CE1702 by jungki.kim
+#define CFG_SET_AF_WINDOW             63     //Set AF Window for CE1702 by jungki.kim
+#define CFG_SET_AE_WINDOW             64     //Set AE Window for CE1702 by jungki.kim
+#define CFG_SET_OBJECT_TRACKING       65     //                                                                             
+#define CFG_SET_AEC_AWB_LOCK_CE1702   66     //Support AEC/AWB Lock for CE1702 by jungki.kim
+#define CFG_SET_DIM_INFO              67     //                                                                    
+#define CFG_GET_CAM_OPEN_MODE         68     //                                                 
+#define CFG_SET_MANUAL_SCENE_MODE     69     //Support ManualSceneMode for CE1702 by gayoung85.lee
+#define CFG_SET_GYRO_DATA             70     //                                              
+#define CFG_SET_WDR                   71     //Support WDR for CE1702 by gayoung85.lee
+#define CFG_SET_EXIF_ROTATION         72     //                                                         
+#define CFG_SET_EXIF_GPS              73     //                                                 
+#define CFG_SET_ASD                   74     //Supprort ASD for CE1702 by gayoung85.lee
+#define CFG_SET_EXIF_THUMBNAIL_SIZE   75     //                                                   
+/*                                                                       */
+#define CFG_MOVE_FOCUS_MANUAL         76     //                                                                      
+#define CFG_ACTUAOTOR_REG_INIT        77
+#define CFG_MAX                       78
 
 
 #define MOVE_NEAR	0
@@ -1213,12 +1234,13 @@ enum msm_v4l2_power_line_frequency {
 };
 
 #define CAMERA_ISO_TYPE_AUTO           0
-#define CAMEAR_ISO_TYPE_HJR            1
-#define CAMEAR_ISO_TYPE_100            2
+#define CAMERA_ISO_TYPE_HJR            1
+#define CAMERA_ISO_TYPE_100            2
 #define CAMERA_ISO_TYPE_200            3
 #define CAMERA_ISO_TYPE_400            4
-#define CAMEAR_ISO_TYPE_800            5
+#define CAMERA_ISO_TYPE_800            5
 #define CAMERA_ISO_TYPE_1600           6
+#define CAMERA_ISO_TYPE_DEFAULT     7
 
 struct sensor_pict_fps {
 	uint16_t prevfps;
@@ -1286,6 +1308,19 @@ struct sensor_init_cfg {
 	uint8_t pict_res;
 };
 
+//Start :randy@qualcomm.com for calibration 2012.04.15
+#define ROLLOFF_CALDATA_SIZE    (17 * 13)
+typedef struct
+{
+    unsigned short           mesh_rolloff_table_size;     // TableSize
+    uint8_t                  r_gain[ROLLOFF_CALDATA_SIZE];   // RGain
+    uint8_t                  gr_gain[ROLLOFF_CALDATA_SIZE];  // GRGain
+    uint8_t                  gb_gain[ROLLOFF_CALDATA_SIZE];  // GBGain
+    uint8_t                  b_gain[ROLLOFF_CALDATA_SIZE];   // BGain
+	uint8_t					 red_ref[17];
+
+} rolloff_caldata_array_type;
+
 struct sensor_calib_data {
 	/* Color Related Measurements */
 	uint16_t r_over_g;
@@ -1298,7 +1333,10 @@ struct sensor_calib_data {
 	uint16_t stroke_amt;
 	uint16_t af_pos_1m;
 	uint16_t af_pos_inf;
+	/* Lens Shading Calibration Data */
+	rolloff_caldata_array_type rolloff;
 };
+//End :randy@qualcomm.com for calibration 2012.04.15
 
 enum msm_sensor_resolution_t {
 	MSM_SENSOR_RES_FULL,
@@ -1308,7 +1346,17 @@ enum msm_sensor_resolution_t {
 	MSM_SENSOR_RES_4,
 	MSM_SENSOR_RES_5,
 	MSM_SENSOR_RES_6,
+/*                                                                  */
 	MSM_SENSOR_RES_7,
+	MSM_SENSOR_RES_8,
+	MSM_SENSOR_RES_9,
+	MSM_SENSOR_RES_10,
+	MSM_SENSOR_RES_ZSL,//SENSOR_MODE_ZSL
+	MSM_SENSOR_RES_BURST,//SENSOR_MODE_BURSTSHOT
+	MSM_SENSOR_RES_HDR,//SENSOR_MODE_HDR
+	MSM_SENSOR_RES_LLS,//SENSOR_MODE_LOW_LIGHT_SHOT
+	MSM_SENSOR_RES_YUV_PREVIEW, //SENSOR_MODE_LOW_LIGHT_SHOT
+/*                                                                  */	
 	MSM_SENSOR_INVALID_RES,
 };
 
@@ -1474,6 +1522,7 @@ struct csiphy_cfg_data {
 #define CSI_YUV420_Y_8 0x30
 #define CSI_YUV420_UV_8 0x31
 #define CSI_YUV420_JM_8 0x32
+#define CSI_JPEG   0x30
 
 #define CSI_DECODE_6BIT 0
 #define CSI_DECODE_8BIT 1
@@ -1640,6 +1689,43 @@ struct msm_cam_clk_setting {
 	uint8_t enable;
 };
 
+/*                                                                                             */
+struct rec_t {
+  uint16_t x;
+  uint16_t y;
+  uint16_t dx;
+  uint16_t dy;
+  uint16_t mode;
+};
+/*                                                                                             */
+
+/*                                                                         */
+struct k_exif_gps_t {
+	uint32_t altitude;
+	char altiRef;
+	char latRef;
+	char lonRef;
+	uint32_t gpsTimeStamp[3];
+	uint32_t latitude[3];
+	uint32_t longitude[3];
+	uint32_t gpsDateStamp[3];
+	char gpsProcessingMethod[109];
+};
+/*                                                                       */
+
+/*                                                                                          */
+struct dimen_t {
+  uint16_t preview_width;
+  uint16_t preview_height;
+  uint16_t picture_width;
+  uint16_t picture_height;
+  uint16_t video_width;
+  uint16_t video_height;
+  uint16_t thumbnail_width;
+  uint16_t thumbnail_heigh;
+};
+/*                                                                                          */
+
 struct sensor_cfg_data {
 	int cfgtype;
 	int mode;
@@ -1684,6 +1770,26 @@ struct sensor_cfg_data {
 		void *setting;
 		int32_t vision_mode_enable;
 		int32_t vision_ae;
+/*                                                                         */
+		int32_t afmode;			//AF Mode Settings for CE1702 by jungki.kim
+		int32_t zoom;				//Zoom Ratio Settings for CE1702 by jungki.kim
+		int32_t focus_length;		//Support Manual Focus by jungki.kim
+		int32_t flash_mode;		//Support LED Flash only for CE1702 by jungki.kim
+		int16_t af_window[4];		//Set AF Window for CE1702 by jungki.kim
+		int16_t ae_window[4];		//Set AE Window for CE1702 by jungki.kim
+		uint32_t curr_mode;		//Check Current Mode for CE1702 by jungki.kim
+		struct rec_t rect_info;		//                                                                             
+		int32_t aec_awb_lock;		//Support AEC/AWB Lock by jungki.kim
+		struct dimen_t dimension;	//                                                                      
+		int32_t cam_op_mode;		//                                                 
+		int32_t scene_mode;		//Support ManualSceneMode for CE1702 by gayoung85.lee
+		char model_name[20];		//                                                           
+		int32_t wdr_mode;			//Support the WDR for GK project by gayoung85.lee
+		int rotation;				//                                                         
+		struct k_exif_gps_t gps;		//                                                 
+		int32_t asd_onoff;	//Support ASD for CE1702 by gayoung85.lee
+/*                                                                       */
+
 	} cfg;
 };
 
@@ -1756,6 +1862,9 @@ struct msm_actuator_move_params_t {
 	int8_t sign_dir;
 	int16_t dest_step_pos;
 	int32_t num_steps;
+/*                                                                 */
+	int32_t af_status;
+/*                                                                 */
 	struct damping_params_t *ringing_params;
 };
 
@@ -1835,6 +1944,12 @@ struct msm_calib_wb {
 	uint16_t gr_over_gb;
 };
 
+#if 1 //                                                  
+struct msm_calib_ver {
+	uint16_t cal_ver; // rafal47 0813
+};
+#endif
+
 struct msm_calib_af {
 	uint16_t macro_dac;
 	uint16_t inf_dac;
@@ -1847,6 +1962,12 @@ struct msm_calib_lsc {
 	uint16_t gr_gain[221];
 	uint16_t gb_gain[221];
 };
+
+/*                                                                                                         */
+struct msm_calib_id {
+	uint16_t sensor_id;
+};
+/*                                                                                                         */
 
 struct pixel_t {
 	int x;
@@ -1865,13 +1986,37 @@ struct msm_calib_raw {
 	uint32_t size;
 };
 
+#if defined(CONFIG_S5K4E5YA_EEPROM) || defined(CONFIG_OV5693_EEPROM) /*                                                                                     */
+struct msm_camera_eeprom_info_t {
+	struct msm_eeprom_support af;
+	struct msm_eeprom_support wb;
+	struct msm_eeprom_support lsc;
+	struct msm_eeprom_support id; /*                                                                                                       */
+	struct msm_eeprom_support dpc;
+	struct msm_eeprom_support raw;
+};
+
+#elif defined(CONFIG_IMX091_EEPROM)
+struct msm_camera_eeprom_info_t {
+	struct msm_eeprom_support af;
+	struct msm_eeprom_support wb50;
+	struct msm_eeprom_support wb30;
+	struct msm_eeprom_support lsc50;
+	struct msm_eeprom_support lsc40;
+	struct msm_eeprom_support dpc;
+	struct msm_eeprom_support cal_ver; //                                                        
+	struct msm_eeprom_support raw;
+};
+#else
 struct msm_camera_eeprom_info_t {
 	struct msm_eeprom_support af;
 	struct msm_eeprom_support wb;
 	struct msm_eeprom_support lsc;
 	struct msm_eeprom_support dpc;
+	struct msm_eeprom_support cal_ver; //                                                        
 	struct msm_eeprom_support raw;
 };
+#endif
 
 struct msm_eeprom_cfg_data {
 	int cfgtype;

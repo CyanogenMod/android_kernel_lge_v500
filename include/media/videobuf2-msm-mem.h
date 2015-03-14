@@ -74,8 +74,15 @@ int videobuf2_pmem_contig_user_get(struct videobuf2_contig_pmem *mem,
 					uint32_t addr_offset, int path,
 					struct ion_client *client,
 					int domain_num);
+/*                                                               */
+#if defined(CONFIG_LGE_GK_CAMERA)
+void videobuf2_pmem_contig_user_put(struct videobuf2_contig_pmem *mem,
+				struct ion_client *client, int domain_num, int is_closing);
+#else
 void videobuf2_pmem_contig_user_put(struct videobuf2_contig_pmem *mem,
 				struct ion_client *client, int domain_num);
+#endif
+/*                                                             */
 unsigned long videobuf2_to_pmem_contig(struct vb2_buffer *buf,
 					unsigned int plane_no);
 

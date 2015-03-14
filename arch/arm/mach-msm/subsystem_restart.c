@@ -35,6 +35,10 @@
 #include <mach/subsystem_notif.h>
 #include <mach/subsystem_restart.h>
 
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+#include <mach/restart.h>
+#include <mach/board_lge.h>
+#endif
 #include "smd_private.h"
 
 struct subsys_soc_restart_order {
@@ -86,6 +90,10 @@ static int enable_ramdumps;
 module_param(enable_ramdumps, int, S_IRUGO | S_IWUSR);
 
 struct workqueue_struct *ssr_wq;
+
+#ifdef CONFIG_MACH_LGE
+static int modem_reboot_cnt = 0;
+#endif
 
 static LIST_HEAD(restart_log_list);
 static LIST_HEAD(subsystem_list);
@@ -142,13 +150,30 @@ static struct subsys_soc_restart_order *restart_orders_8064_sglte2[] = {
 	&restart_orders_8064_fusion_sglte2,
 	};
 
+/* MSM 8960 restart ordering info */
+static const char * const order_8960[] = {"modem", "lpass"};
+
+static struct subsys_soc_restart_order restart_orders_8960_one = {
+	.subsystem_list = order_8960,
+	.count = ARRAY_SIZE(order_8960),
+	.subsys_ptrs = {[ARRAY_SIZE(order_8960)] = NULL}
+	};
+
+static struct subsys_soc_restart_order *restart_orders_8960[] = {
+	&restart_orders_8960_one,
+};
+
 /* These will be assigned to one of the sets above after
  * runtime SoC identification.
  */
 static struct subsys_soc_restart_order **restart_orders;
 static int n_restart_orders;
 
-static int restart_level = RESET_SUBSYS_INDEPENDENT;
+static int restart_level = RESET_SOC;
+
+#ifdef CONFIG_MACH_LGE
+module_param(modem_reboot_cnt, int, S_IRUGO | S_IWUSR);
+#endif
 
 int get_restart_level()
 {
@@ -245,6 +270,9 @@ static void do_epoch_check(struct subsys_device *dev)
 	struct restart_log *r_log, *temp;
 	static int max_restarts_check;
 	static long max_history_time_check;
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+	int ssr_magic_number = get_ssr_magic_number();
+#endif
 
 	mutex_lock(&restart_log_mutex);
 
@@ -287,6 +315,9 @@ static void do_epoch_check(struct subsys_device *dev)
 	if (time_first && n >= max_restarts_check) {
 		if ((curr_time->tv_sec - time_first->tv_sec) <
 				max_history_time_check) {
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+			msm_set_restart_mode(ssr_magic_number | SUB_UNAB_THD);
+#endif
 			panic("Subsystems have crashed %d times in less than "\
 				"%ld seconds!", max_restarts_check,
 				max_history_time_check);
@@ -324,9 +355,15 @@ static void send_notification_to_order(struct subsys_device **l, unsigned n,
 static void subsystem_shutdown(struct subsys_device *dev, void *data)
 {
 	const char *name = dev->desc->name;
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+	int ssr_magic_number = get_ssr_magic_number();
+#endif
 
 	pr_info("[%p]: Shutting down %s\n", current, name);
 	if (dev->desc->shutdown(dev->desc) < 0) {
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+		msm_set_restart_mode(ssr_magic_number | SUB_THD_F_SD);
+#endif
 		panic("subsys-restart: [%p]: Failed to shutdown %s!",
 			current, name);
 	}
@@ -345,9 +382,15 @@ static void subsystem_ramdump(struct subsys_device *dev, void *data)
 static void subsystem_powerup(struct subsys_device *dev, void *data)
 {
 	const char *name = dev->desc->name;
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+	int ssr_magic_number = get_ssr_magic_number();
+#endif
 
 	pr_info("[%p]: Powering up %s\n", current, name);
 	if (dev->desc->powerup(dev->desc) < 0) {
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+		msm_set_restart_mode(ssr_magic_number | SUB_THD_F_PWR);
+#endif
 		panic("[%p]: Failed to powerup %s!", current, name);
 	}
 	subsys_set_state(dev, SUBSYS_ONLINE);
@@ -364,6 +407,9 @@ static void subsystem_restart_wq_func(struct work_struct *work)
 	struct mutex *shutdown_lock;
 	unsigned count;
 	unsigned long flags;
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+	int ssr_magic_number = get_ssr_magic_number();
+#endif
 
 	if (restart_level != RESET_SUBSYS_INDEPENDENT)
 		soc_restart_order = dev->restart_order;
@@ -406,6 +452,9 @@ static void subsystem_restart_wq_func(struct work_struct *work)
 	 * order is being rebooted.
 	 */
 	if (!mutex_trylock(powerup_lock)) {
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+		msm_set_restart_mode(ssr_magic_number | SUB_THD_F_PWR);
+#endif
 		panic("%s[%p]: Subsystem died during powerup!",
 						__func__, current);
 	}
@@ -486,6 +535,9 @@ static void __subsystem_restart_dev(struct subsys_device *dev)
 int subsystem_restart_dev(struct subsys_device *dev)
 {
 	const char *name = dev->desc->name;
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+	u32 ssr_magic_number;
+#endif
 
 	/*
 	 * If a system reboot/shutdown is underway, ignore subsystem errors.
@@ -501,6 +553,13 @@ int subsystem_restart_dev(struct subsys_device *dev)
 	pr_info("Restart sequence requested for %s, restart_level = %d.\n",
 		name, restart_level);
 
+#ifdef CONFIG_MACH_LGE
+	if (!strcmp(name, "external_modem")) {
+		modem_reboot_cnt++;
+		if (modem_reboot_cnt < 0)
+			modem_reboot_cnt = 1;
+	}
+#endif
 	switch (restart_level) {
 
 	case RESET_SUBSYS_COUPLED:
@@ -508,9 +567,27 @@ int subsystem_restart_dev(struct subsys_device *dev)
 		__subsystem_restart_dev(dev);
 		break;
 	case RESET_SOC:
+		//                                                                               
+		if (strncmp(name, "wcnss", 5) == 0) {
+			__subsystem_restart_dev(dev);
+			break;
+		}
+		//                                                                             
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+		set_ssr_magic_number(name);
+		ssr_magic_number = get_ssr_magic_number();
+
+		msm_set_restart_mode(ssr_magic_number | SUB_RESET_SOC);
+#endif
 		panic("subsys-restart: Resetting the SoC - %s crashed.", name);
 		break;
 	default:
+#if defined(CONFIG_LGE_CRASH_HANDLER)
+		set_ssr_magic_number(name);
+		ssr_magic_number = get_ssr_magic_number();
+
+		msm_set_restart_mode(ssr_magic_number | SUB_UNKNOWN);
+#endif
 		panic("subsys-restart: Unknown restart level!\n");
 		break;
 	}
@@ -535,6 +612,22 @@ found:
 	return -ENODEV;
 }
 EXPORT_SYMBOL(subsystem_restart);
+
+/*                                                                */
+int subsys_modem_restart(void)
+{
+	int ret;
+	int rsl;
+
+	rsl = restart_level;
+	restart_level = RESET_SUBSYS_COUPLED;
+	ret = subsystem_restart("external_modem");
+	restart_level = rsl;
+
+	return ret;
+}
+EXPORT_SYMBOL(subsys_modem_restart);
+/*                                                                */
 
 struct subsys_device *subsys_register(struct subsys_desc *desc)
 {
@@ -612,6 +705,10 @@ static int __init ssr_init_soc_restart_orders(void)
 
 		restart_orders = orders_8x60_all;
 		n_restart_orders = ARRAY_SIZE(orders_8x60_all);
+	} else if(cpu_is_msm8960() || cpu_is_msm8930() || cpu_is_msm8930aa() ||
+	    cpu_is_msm9615() || cpu_is_apq8064() || cpu_is_msm8627()) {
+		restart_orders = restart_orders_8960;
+		n_restart_orders = ARRAY_SIZE(restart_orders_8960);
 	}
 
 	if (socinfo_get_platform_subtype() == PLATFORM_SUBTYPE_SGLTE) {

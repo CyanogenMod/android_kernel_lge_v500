@@ -32,6 +32,50 @@ static int skip_init;
 
 #define DSV_ONBST 57
 
+#define LGIT_IEF_SWITCH
+
+#ifdef LGIT_IEF_SWITCH
+struct msm_fb_data_type *local_mfd0 = NULL;
+static int is_ief_on = 1;
+#endif
+
+#ifdef LGIT_IEF_SWITCH
+int mipi_lgit_lcd_ief_off(void)
+{
+	if(local_mfd0->panel_power_on && is_ief_on) {	
+		printk("IEF_OFF Starts with Camera\n");
+		mutex_lock(&local_mfd0->dma->ov_mutex);
+		MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x10000000);//HS mode
+		mipi_dsi_cmds_tx(&lgit_tx_buf, mipi_lgit_pdata->power_off_set_ief, mipi_lgit_pdata->power_off_set_ief_size);
+			
+		printk("%s, %d\n", __func__,is_ief_on);
+		MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x14000000);//LP mode
+		mutex_unlock(&local_mfd0->dma->ov_mutex);
+		printk("IEF_OFF Ends with Camera\n");
+	}
+	is_ief_on = 0;
+                                                                                         
+	return 0;
+} 
+
+int mipi_lgit_lcd_ief_on(void)
+{	
+	if(local_mfd0->panel_power_on && !is_ief_on) {
+		printk("IEF_ON Starts with Camera\n");
+		mutex_lock(&local_mfd0->dma->ov_mutex);
+		MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x10000000);//HS mode
+		mipi_dsi_cmds_tx(&lgit_tx_buf, mipi_lgit_pdata->power_on_set_ief, mipi_lgit_pdata->power_on_set_ief_size); 
+							
+		printk("%s, %d\n", __func__,is_ief_on);
+		MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x14000000); //LP mode
+		mutex_unlock(&local_mfd0->dma->ov_mutex);
+		printk("IEF_ON Ends with Camera\n");
+	}
+        is_ief_on = 1;
+                    
+	return 0;                                                                             
+} 
+#endif
 static int lgit_external_dsv_onoff(uint8_t on_off)
 {
 	int ret =0;
@@ -61,12 +105,13 @@ out:
 	return ret;
 }
 
-static int mipi_lgit_lcd_on(struct platform_device *pdev)
+//static 
+int mipi_lgit_lcd_on(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd;
 	int ret = 0;
 
-	pr_info("%s started\n", __func__);
+	pr_info("%s:+ wxga \n", __func__);
 
 	mfd = platform_get_drvdata(pdev);
 	if (!mfd)
@@ -74,6 +119,10 @@ static int mipi_lgit_lcd_on(struct platform_device *pdev)
 	if (mfd->key != MFD_KEY)
 		return -EINVAL;
 
+#ifdef LGIT_IEF_SWITCH
+	if(local_mfd0 == NULL)
+		local_mfd0 = mfd;
+#endif
 	MIPI_OUTP(MIPI_DSI_BASE + 0x38, 0x10000000);
 	ret = mipi_dsi_cmds_tx(&lgit_tx_buf,
 			mipi_lgit_pdata->power_on_set_1,
@@ -113,19 +162,22 @@ static int mipi_lgit_lcd_on(struct platform_device *pdev)
 		return ret;
 	}
 
-	pr_info("%s finished\n", __func__);
+	pr_info("%s:- wxga \n", __func__);
 	return 0;
 }
 
-static int mipi_lgit_lcd_off(struct platform_device *pdev)
+//static 
+int mipi_lgit_lcd_off(struct platform_device *pdev)
 {
 	struct msm_fb_data_type *mfd;
 	int ret = 0;
 
-	pr_info("%s started\n", __func__);
+	pr_info("%s:+ wxga \n", __func__);
 
+	#if 0 //FIX_ME
 	if (mipi_lgit_pdata->bl_pwm_disable)
 		mipi_lgit_pdata->bl_pwm_disable();
+	#endif 
 
 	mfd = platform_get_drvdata(pdev);
 
@@ -161,13 +213,14 @@ static int mipi_lgit_lcd_off(struct platform_device *pdev)
 		return ret;
 	}
 
-	pr_info("%s finished\n", __func__);
+	pr_info("%s:- wxga \n", __func__);
 	return 0;
 }
 
 static int mipi_lgit_backlight_on_status(void)
 {
-	return (mipi_lgit_pdata->bl_on_status());
+	//FIX_ME
+	return 0;//(mipi_lgit_pdata->bl_on_status());
 }
 
 static void mipi_lgit_set_backlight_board(struct msm_fb_data_type *mfd)

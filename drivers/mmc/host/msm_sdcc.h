@@ -485,6 +485,24 @@ static inline void set_default_hw_caps(struct msmsdcc_host *host)
 int msmsdcc_set_pwrsave(struct mmc_host *mmc, int pwrsave);
 int msmsdcc_sdio_al_lpm(struct mmc_host *mmc, bool enable);
 
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+enum vdd_io_level {
+	/* set vdd_io_data->low_vol_level */
+	VDD_IO_LOW,
+	/* set vdd_io_data->high_vol_level */
+	VDD_IO_HIGH,
+	/*
+	 * set whatever there in voltage_level (third argument) of
+	 * msmsdcc_set_vdd_io_vol() function.
+	 */
+	VDD_IO_SET_LEVEL,
+};
+int msmsdcc_set_vdd_io_vol(struct msmsdcc_host *host,
+				  enum vdd_io_level level,
+				  unsigned int voltage_level);
+
+int msmsdcc_get_vdd_io_vol(struct msmsdcc_host *host);
+#endif
 #ifdef CONFIG_MSM_SDIO_AL
 
 static inline int msmsdcc_lpm_enable(struct mmc_host *mmc)

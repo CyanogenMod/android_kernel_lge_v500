@@ -132,8 +132,10 @@ struct pm8921_platform_data {
 	struct pm8xxx_rtc_platform_data         *rtc_pdata;
 	struct pm8xxx_pwrkey_platform_data	*pwrkey_pdata;
 	struct pm8xxx_keypad_platform_data	*keypad_pdata;
+#ifndef CONFIG_MACH_APQ8064_ALTEV
 	struct pm8921_charger_platform_data	*charger_pdata;
 	struct pm8921_bms_platform_data		*bms_pdata;
+#endif/* undefine CONFIG_MACH_APQ8064_ALTEV */
 	struct pm8xxx_misc_platform_data	*misc_pdata;
 	struct pm8xxx_regulator_platform_data	*regulator_pdatas;
 	int					num_regulators;

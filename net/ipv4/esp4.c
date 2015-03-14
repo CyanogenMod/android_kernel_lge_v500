@@ -602,6 +602,9 @@ static int esp_init_authenc(struct xfrm_state *x)
 		aalg_desc = xfrm_aalg_get_byname(x->aalg->alg_name, 0);
 		BUG_ON(!aalg_desc);
 
+		if (!aalg_desc) //WBT
+			goto free_key;
+
 		err = -EINVAL;
 		if (aalg_desc->uinfo.auth.icv_fullbits/8 !=
 		    crypto_aead_authsize(aead)) {

@@ -166,6 +166,11 @@ config CPU_FREQ_GOV_ONDEMAND
 
 	  If in doubt, say N.
 
+config LG_GRID_GOVERNOR
+	bool "LG GRID Governor"
+	help
+		new LGE governor policy
+
 config CPU_FREQ_GOV_INTERACTIVE
 	tristate "'interactive' cpufreq policy governor"
 	help

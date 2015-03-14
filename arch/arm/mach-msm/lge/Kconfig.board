@@ -1,8 +1,30 @@
 #
 # Inlcude the specific Kconfig file for LGE board
 #
-# MAKO
-source "arch/arm/mach-msm/lge/mako/Kconfig"
+
+# L05E
+source "arch/arm/mach-msm/lge/L05E/Kconfig"
+
+# J1V
+source "arch/arm/mach-msm/lge/j1/Kconfig"
+
+# GK
+source "arch/arm/mach-msm/lge/gk/Kconfig"
+
+# OMEGAR
+source "arch/arm/mach-msm/lge/omegar/Kconfig"
+
+# OMEGA
+source "arch/arm/mach-msm/lge/omega/Kconfig"
+
+# GV
+source "arch/arm/mach-msm/lge/gv/Kconfig"
+
+# GV KR
+source "arch/arm/mach-msm/lge/gvkr/Kconfig"
+
+# AWIFI
+source "arch/arm/mach-msm/lge/awifi/Kconfig"
 
 config MACH_LGE_DUMMY
 	bool "NONE (No device)"

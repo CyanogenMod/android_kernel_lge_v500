@@ -213,3 +213,8 @@ obj-$(CONFIG_SND_SOC_MSM_STUB)  += snd-soc-msm-stub.o
 obj-$(CONFIG_SND_SOC_MAX9877)	+= snd-soc-max9877.o
 obj-$(CONFIG_SND_SOC_TPA6130A2)	+= snd-soc-tpa6130a2.o
 obj-$(CONFIG_SND_SOC_TPA2028D)	+= tpa2028d.o
+obj-$(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER) += tpa2028d_dual_speaker.o
+# CONFIG_LGE_AUDIO, 2012-11-17, Audience es325 ALSA SoC Audio driver
+ifeq ($(CONFIG_SND_SOC_ES325_SLIM),y)
+obj-$(CONFIG_SND_SOC_ES325_SLIM) += es325.o
+endif

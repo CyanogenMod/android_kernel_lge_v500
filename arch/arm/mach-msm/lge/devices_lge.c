@@ -21,10 +21,22 @@
 #include <asm/sizes.h>
 #include <asm/system_info.h>
 #include <asm/memory.h>
+#ifdef CONFIG_LGE_PM
+#include <linux/mfd/pm8xxx/pm8921.h>
+#include <linux/delay.h>
+#endif
 
 #include <mach/board_lge.h>
 
 #include <ram_console.h>
+
+#ifdef CONFIG_LGE_PM
+#include CONFIG_BOARD_HEADER_FILE
+#endif
+
+#ifdef CONFIG_LGE_BOOT_TIME_CHECK
+#include "lge_boot_time_checker.h"
+#endif
 
 /* setting whether uart console is enalbed or disabled */
 static int uart_console_mode = 0;
@@ -46,6 +58,50 @@ static int __init lge_uart_mode(char *uart_mode)
 	return 1;
 }
 __setup("uart_console=", lge_uart_mode);
+
+#ifdef CONFIG_LGE_PM_LOW_BATT_CHG
+int chargerlogo_state = 0;
+int lge_set_charger_logo_state(int val)
+{
+	chargerlogo_state = val;
+	printk(KERN_INFO"Chargerlogo state : %d\n", chargerlogo_state);
+	return 0;
+}
+int lge_get_charger_logo_state(void)
+{
+	//printk(KERN_INFO"Chargerlogo state : %d\n", chargerlogo_state);
+	return chargerlogo_state;
+}
+#endif
+
+#ifdef CONFIG_LGE_PM
+/* Implement cable detection */
+struct chg_cable_info_table {
+	int threshhold;
+	acc_cable_type type;
+	unsigned ta_ma;
+	unsigned usb_ma;
+};
+
+/* This table is only for J1 */
+static struct chg_cable_info_table pm8921_acc_cable_type_data[]={
+	{ADC_NO_INIT_CABLE, NO_INIT_CABLE,  C_NO_INIT_TA_MA,    C_NO_INIT_USB_MA},
+	{ADC_CABLE_MHL_1K,  CABLE_MHL_1K,   C_MHL_1K_TA_MA,     C_MHL_1K_USB_MA},
+	{ADC_CABLE_U_28P7K, CABLE_U_28P7K,  C_U_28P7K_TA_MA,    C_U_28P7K_USB_MA},
+	{ADC_CABLE_28P7K,   CABLE_28P7K,    C_28P7K_TA_MA,      C_28P7K_USB_MA},
+	{ADC_CABLE_56K,     CABLE_56K,      C_56K_TA_MA,        C_56K_USB_MA},
+	{ADC_CABLE_100K,    CABLE_100K,     C_100K_TA_MA,       C_100K_USB_MA},
+	{ADC_CABLE_130K,    CABLE_130K,     C_130K_TA_MA,       C_130K_USB_MA},
+	{ADC_CABLE_180K,    CABLE_180K,     C_180K_TA_MA,       C_180K_USB_MA},
+	{ADC_CABLE_200K,    CABLE_200K,     C_200K_TA_MA,       C_200K_USB_MA},
+	{ADC_CABLE_220K,    CABLE_220K,     C_220K_TA_MA,       C_220K_USB_MA},
+	{ADC_CABLE_270K,    CABLE_270K,     C_270K_TA_MA,       C_270K_USB_MA},
+	{ADC_CABLE_330K,    CABLE_330K,     C_330K_TA_MA,       C_330K_USB_MA},
+	{ADC_CABLE_620K,    CABLE_620K,     C_620K_TA_MA,       C_620K_USB_MA},
+	{ADC_CABLE_910K,    CABLE_910K,     C_910K_TA_MA,       C_910K_USB_MA},
+	{ADC_CABLE_NONE,    CABLE_NONE,     C_NONE_TA_MA,       C_NONE_USB_MA},
+};
+#endif
 
 /* for board revision */
 static hw_rev_type lge_bd_rev = HW_REV_EVB1;
@@ -77,28 +133,244 @@ hw_rev_type lge_get_board_revno(void)
     return lge_bd_rev;
 }
 
-#ifdef CONFIG_LCD_KCAL
-extern int kcal_set_values(int kcal_r, int kcal_g, int kcal_b);
-static int __init display_kcal_setup(char *kcal)
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+unsigned lge_get_board_revno_adc(void)
 {
-	char vaild_k = 0;
-	int kcal_r = 0;
-	int kcal_g = 0;
-	int kcal_b = 0;
+	struct pm8xxx_adc_chan_result result;
+	
+	pm8xxx_adc_mpp_config_read(PM8XXX_AMUX_MPP_3,
+			ADC_MPP_1_AMUX6, &result);
 
-	sscanf(kcal, "%d|%d|%d|%c", &kcal_r, &kcal_g, &kcal_b, &vaild_k );
-	pr_info("kcal is %d|%d|%d|%c\n", kcal_r, kcal_g, kcal_b, vaild_k);
+	return result.physical;
+}
+#endif
+#ifdef CONFIG_LGE_PM
+int lge_pm_get_cable_info(struct chg_cable_info *cable_info)
+{
+	char *type_str[] = {"NOT INIT", "MHL 1K", "U_28P7K", "28P7K", "56K",
+		"100K", "130K", "180K", "200K", "220K", "270K", "330K", "620K", "910K",
+		"OPEN"};
 
-	if (vaild_k != 'K') {
-		pr_info("kcal not calibrated yet : %d\n", vaild_k);
-		kcal_r = kcal_g = kcal_b = 255;
-		pr_info("set to default : %d\n", kcal_r);
+	struct pm8xxx_adc_chan_result result;
+	struct chg_cable_info *info = cable_info;
+	struct chg_cable_info_table *table;
+	int table_size = ARRAY_SIZE(pm8921_acc_cable_type_data);
+	int acc_read_value = 0;
+	int acc_read_value_data[5] = {0,};
+	int i, j, rc;
+	int count = 5;
+
+	if (!info) {
+		pr_err("lge_pm_get_cable_info: invalid info parameters\n");
+		return -1;
 	}
 
-	kcal_set_values(kcal_r, kcal_g, kcal_b);
-	return 1;
+	for (i = 0; i < count; i++) {
+		rc = pm8xxx_adc_mpp_config_read(PM8XXX_AMUX_MPP_12,
+				ADC_MPP_1_AMUX6, &result);
+
+		if (rc < 0) {
+			if (rc == -ETIMEDOUT) {
+				/* reason: adc read timeout, assume it is open cable */
+				info->cable_type = CABLE_NONE;
+				info->ta_ma = C_NONE_TA_MA;
+				info->usb_ma = C_NONE_USB_MA;
+				pr_err("[DEBUG] lge_pm_get_cable_info : adc read timeout \n");
+			} else {
+	    			pr_err("lge_pm_get_cable_info: adc read error - %d\n", rc);
+			}
+			return rc;
+		}
+
+		acc_read_value_data[i] = (int)result.physical;
+		pr_info("%s: acc_read_value - %d\n", __func__, (int)result.physical);
+		if (lge_get_boot_mode() == LGE_BOOT_MODE_NORMAL) {
+			for(j = 0; j < i; j++)
+			{
+				if(abs(acc_read_value_data[i] - acc_read_value_data[i-j-1]) > 100000)
+				{
+					count = 0;
+					acc_read_value = 1800000;
+					pr_info("%s: abnormal acc_read_value\n", __func__);
+					break;
+				}
+				else
+					acc_read_value = (int)result.physical;
+
+			}
+		} else {
+			acc_read_value = (int)result.physical;
+		}
+		mdelay(10);
+	}
+
+	info->cable_type = NO_INIT_CABLE;
+	info->ta_ma = C_NO_INIT_TA_MA;
+	info->usb_ma = C_NO_INIT_USB_MA;
+
+	/* assume: adc value must be existed in ascending order */
+	for (i = 0; i < table_size; i++) {
+			table = &pm8921_acc_cable_type_data[i];
+
+		if (acc_read_value <= table->threshhold) {
+			info->cable_type = table->type;
+			info->ta_ma = table->ta_ma;
+			info->usb_ma = table->usb_ma;
+			break;
+		}
+	}
+
+	pr_info("\n\n[PM]Cable detected: %d(%s)(%d, %d)\n\n",
+			acc_read_value, type_str[info->cable_type],
+			info->ta_ma, info->usb_ma);
+
+	return 0;
+}
+
+/* Belows are for using in interrupt context */
+//                                            
+struct chg_cable_info lge_cable_info;
+
+acc_cable_type lge_pm_get_cable_type(void)
+{
+	return lge_cable_info.cable_type;
+}
+
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+unsigned lge_pm_get_cable_type_adc(void)
+{
+	struct pm8xxx_adc_chan_result result;
+	
+	pm8xxx_adc_mpp_config_read(PM8XXX_AMUX_MPP_12,
+			ADC_MPP_1_AMUX6, &result);
+
+	return result.physical;
+}
+#endif
+unsigned lge_pm_get_ta_current(void)
+{
+	return lge_cable_info.ta_ma;
+}
+
+unsigned lge_pm_get_usb_current(void)
+{
+	return lge_cable_info.usb_ma;
+}
+
+/* This must be invoked in process context */
+void lge_pm_read_cable_info(void)
+{
+	lge_cable_info.cable_type = NO_INIT_CABLE;
+	lge_cable_info.ta_ma = C_NO_INIT_TA_MA;
+	lge_cable_info.usb_ma = C_NO_INIT_USB_MA;
+
+	lge_pm_get_cable_info(&lge_cable_info);
+}
+#endif
+#ifdef CONFIG_USB_EMBEDDED_BATTERY_REBOOT
+/*
+   for download complete using LAF image
+   return value : 1 --> right after laf complete & reset
+*/
+
+int android_dlcomplete = 0;
+
+int __init lge_android_dlcomplete(char *s)
+{
+      if(strncmp(s,"1",1) == 0)
+              android_dlcomplete = 1;
+      else
+	     android_dlcomplete = 0;
+       printk("androidboot.dlcomplete = %d\n", android_dlcomplete);
+
+       return 1;
+}
+__setup("androidboot.dlcomplete=", lge_android_dlcomplete);
+
+int lge_get_android_dlcomplete(void)
+{
+		return android_dlcomplete;
+}
+#endif
+#ifdef CONFIG_LGE_PM_BATTERY_ID_CHECKER
+int lge_battery_info = BATT_ID_UNKNOWN;
+
+bool is_lge_battery(void)
+{
+	if (lge_battery_info == BATT_ID_DS2704_N ||
+	    lge_battery_info == BATT_ID_DS2704_L ||
+	    lge_battery_info == BATT_ID_DS2704_C ||
+	    lge_battery_info == BATT_ID_ISL6296_N ||
+	    lge_battery_info == BATT_ID_ISL6296_L ||
+	    lge_battery_info == BATT_ID_ISL6296_C)
+		return true;
+	return false;
+}
+EXPORT_SYMBOL(is_lge_battery);
+
+static int __init battery_information_setup(char *batt_info)
+{
+        if(!strcmp(batt_info, "ds2704_n"))
+                lge_battery_info = BATT_ID_DS2704_N;
+        else if(!strcmp(batt_info, "ds2704_l"))
+                lge_battery_info = BATT_ID_DS2704_L;
+        else if(!strcmp(batt_info, "isl6296_n"))
+                lge_battery_info = BATT_ID_ISL6296_N;
+        else if(!strcmp(batt_info, "isl6296_l"))
+                lge_battery_info = BATT_ID_ISL6296_L;
+		else if(!strcmp(batt_info, "isl6296_c"))
+				lge_battery_info = BATT_ID_ISL6296_C;
+		else if(!strcmp(batt_info, "ds2704_c"))
+				lge_battery_info = BATT_ID_DS2704_C;
+        else
+                lge_battery_info = BATT_ID_UNKNOWN;
+
+        printk(KERN_INFO "Battery : %s %d\n", batt_info, lge_battery_info);
+
+        return 1;
+}
+__setup("lge.batt_info=", battery_information_setup);
+#endif
+
+#ifdef CONFIG_LGE_KCAL
+#if defined (CONFIG_MACH_APQ8064_GKU) || defined (CONFIG_MACH_APQ8064_GKKT) || defined (CONFIG_MACH_APQ8064_GKSK) || defined(CONFIG_MACH_APQ8064_GVKT) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR) || defined(CONFIG_MACH_APQ8064_OMEGA)
+int g_kcal_r = 248;
+int g_kcal_g = 248;
+int g_kcal_b = 255;
+#elif defined (CONFIG_MACH_APQ8064_GVDCM)
+int g_kcal_r = 250;
+int g_kcal_g = 250;
+int g_kcal_b = 255;
+#else
+int g_kcal_r = 255;
+int g_kcal_g = 255;
+int g_kcal_b = 255;
+#endif
+static int __init display_kcal_setup(char *kcal)
+{
+		char vaild_k = 0;
+        sscanf(kcal, "%d|%d|%d|%c", &g_kcal_r, &g_kcal_g, &g_kcal_b, &vaild_k );
+        printk(KERN_INFO "kcal is %d|%d|%d|%c\n",
+                                        g_kcal_r, g_kcal_g, g_kcal_b, vaild_k);
+
+#if defined (CONFIG_MACH_APQ8064_GKU) || defined (CONFIG_MACH_APQ8064_GKKT) || defined (CONFIG_MACH_APQ8064_GKSK) || defined (CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR) || defined(CONFIG_MACH_APQ8064_OMEGA) || defined(CONFIG_MACH_APQ8064_GVKT)
+       g_kcal_r = g_kcal_r < 248 ? 248 : g_kcal_r;
+       g_kcal_g = g_kcal_g < 248 ? 248 : g_kcal_g;
+       g_kcal_b = g_kcal_b < 253 ? 253 : g_kcal_b;
+#endif
+
+        if(vaild_k != 'K') {
+                printk(KERN_INFO "kcal not calibrated yet : %d\n", vaild_k);
+                g_kcal_r = g_kcal_g = g_kcal_b = 255;
+                printk(KERN_INFO "set to default : %d\n", g_kcal_r);
+        }
+        return 1;
 }
 __setup("lge.kcal=", display_kcal_setup);
+#endif
+
+#ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
+int lge_boot_mode_for_touch = (int)LGE_BOOT_MODE_NORMAL;
 #endif
 
 /* get boot mode information from cmdline.
@@ -121,6 +393,16 @@ int __init lge_boot_mode_init(char *s)
 	else if (!strcmp(s, "pifboot2"))
 		lge_boot_mode = LGE_BOOT_MODE_PIFBOOT2;
 
+#ifdef CONFIG_LGE_PM_LOW_BATT_CHG
+	if(lge_boot_mode == LGE_BOOT_MODE_CHARGERLOGO)
+		lge_set_charger_logo_state(1);
+	else
+		lge_set_charger_logo_state(0);
+#endif
+
+#ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
+	lge_boot_mode_for_touch = (int)lge_boot_mode;
+#endif
 	return 1;
 }
 __setup("androidboot.mode=", lge_boot_mode_init);
@@ -128,6 +410,28 @@ __setup("androidboot.mode=", lge_boot_mode_init);
 enum lge_boot_mode_type lge_get_boot_mode(void)
 {
 	return lge_boot_mode;
+}
+
+static enum lge_boot_cable_type lge_boot_cable = LGE_BOOT_NO_INIT_CABLE;
+int __init lge_boot_cable_type_init(char *s)
+{
+    lge_boot_cable = 0;
+
+    for (;; s++) {
+        switch (*s) {
+            case '0' ... '9':
+                lge_boot_cable = 10*lge_boot_cable+(*s-'0');
+                break;
+            default:
+                return 1;
+        }
+    }
+}
+__setup("cable_type=", lge_boot_cable_type_init);
+
+enum lge_boot_cable_type lge_get_boot_cable_type(void)
+{
+    return lge_boot_cable;
 }
 
 int lge_get_factory_boot(void)
@@ -190,6 +494,34 @@ void __init lge_reserve(void)
 	lge_add_persistent_ram();
 }
 
+#ifdef CONFIG_LGE_FOTA_SILENT_RESET
+static int boot_reason_info = -1;
+static int __init lge_check_bootreason(char *reason)
+{
+	int ret = 0;
+
+	/* handle corner case of kstrtoint */
+	if (!strcmp(reason, "0xffffffff")) {
+		boot_reason_info = 0xffffffff;
+		return 1;
+	}
+
+	ret = kstrtoint(reason, 16, &boot_reason_info);
+	if (!ret)
+		pr_info("LGE REBOOT REASON: %x\n", boot_reason_info);
+	else
+		pr_info("LGE REBOOT REASON: Couldn't get bootreason -%d\n",
+				ret);
+	return 1;
+}
+__setup("lge.bootreason=", lge_check_bootreason);
+
+int lge_get_bootreason(void)
+{
+	return boot_reason_info;
+}
+#endif
+
 #ifdef CONFIG_ANDROID_RAM_CONSOLE
 static char bootreason[128] = {0,};
 int __init lge_boot_reason(char *s)
@@ -234,11 +566,23 @@ void __init lge_add_panic_handler_devices(void)
 {
 	platform_device_register(&panic_handler_device);
 }
-#endif /* CONFIG_LGE_CRASH_HANDLER */
+#endif /*                          */
+
+#ifdef CONFIG_LGE_ECO_MODE
+static struct platform_device lge_kernel_device = {
+	.name = "lge_kernel_driver",
+	.id = -1,
+};
+
+void __init lge_add_lge_kernel_devices(void)
+{
+	platform_device_register(&lge_kernel_device);
+}
+#endif
 
 #ifdef CONFIG_LGE_QFPROM_INTERFACE
 static struct platform_device qfprom_device = {
-	.name = "lge-apq8064-qfprom",
+	.name = "lge-qfprom",
 	.id = -1,
 };
 void __init lge_add_qfprom_devices(void)
@@ -246,3 +590,52 @@ void __init lge_add_qfprom_devices(void)
 	platform_device_register(&qfprom_device);
 }
 #endif
+
+#ifdef CONFIG_LGE_BOOT_TIME_CHECK
+static int lge_time_stamp_mode = 0;
+
+int  lge_get_time_stamp_mode(void)
+{
+	return lge_time_stamp_mode;
+}
+
+static int __init lge_time_stamp(char *mode)
+{
+	if (!strncmp("enable", mode, 5))
+		lge_time_stamp_mode = 1;
+
+	return 1;
+}
+__setup("boot_time_stamp=", lge_time_stamp);
+
+static struct platform_device boot_time_device = {
+.name = "boot_time",
+	.id = -1,
+	.dev = {
+		.platform_data = NULL,
+	},
+};
+void __init lge_add_boot_time_checker(void)
+{
+	if(lge_get_time_stamp_mode())
+		platform_device_register(&boot_time_device);
+}
+#endif
+
+#ifdef CONFIG_LGE_DIAG_USB_ACCESS_LOCK
+static struct platform_device lg_diag_cmd_device = {
+	.name = "lg_diag_cmd",
+	.id = -1,
+	.dev    = {
+		.platform_data = 0, /* &lg_diag_cmd_pdata */
+	},
+};
+
+static int __init lge_diag_devices_init(void)
+{
+	return platform_device_register(&lg_diag_cmd_device);
+}
+arch_initcall(lge_diag_devices_init);
+#endif
+
+

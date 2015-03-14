@@ -52,7 +52,7 @@
 #define HSD_DEBUG_PRINT
 
 #ifdef HSD_DEBUG_PRINT
-#define HSD_DBG(fmt, args...) printk(KERN_DEBUG "%s: " fmt, __func__, ##args)
+#define HSD_DBG(fmt, args...) printk(KERN_ERR "%s: " fmt, __func__, ##args)
 #else
 #define HSD_DBG(fmt, args...) do {} while (0)
 #endif
@@ -353,7 +353,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_detect */
 	ret = gpio_request_one(hi->gpio_detect, GPIOF_IN, "gpio_detect");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_detect)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_detect)\n",
 				__func__, hi->gpio_detect);
 		goto error_01;
 	}
@@ -361,7 +361,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_jpole */
 	ret = gpio_request_one(hi->gpio_jpole, GPIOF_IN, "gpio_jpole");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_jpole)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_jpole)\n",
 				__func__, hi->gpio_jpole);
 		goto error_02;
 	}
@@ -369,7 +369,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	/* initialize gpio_key */
 	ret = gpio_request_one(hi->gpio_key, GPIOF_IN, "gpio_key");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_key)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_key)\n",
 				__func__, hi->gpio_key);
 		goto error_03;
 	}
@@ -378,7 +378,7 @@ static int hsd_gpio_init(struct hsd_info *hi)
 	ret = gpio_request_one(hi->gpio_mic_en, GPIOF_OUT_INIT_LOW,
 			"gpio_mic_en");
 	if (ret < 0) {
-		pr_err("%s: Failed to gpio_request gpio%d (gpio_mic_en)\n",
+		pr_err("%s: Failed to gpio_request gpio %d (gpio_mic_en)\n",
 				__func__, hi->gpio_mic_en);
 		goto error_04;
 	}

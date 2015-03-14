@@ -31,9 +31,15 @@
 #include "msm-pcm-routing.h"
 #include "../codecs/wcd9310.h"
 
-#ifdef CONFIG_SND_SOC_TPA2028D
+#if defined (CONFIG_SND_SOC_TPA2028D) || defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
 #include <sound/tpa2028d.h>
 #endif
+//                                                          
+// Check external EC reference from codec
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+#include <sound/es325-export.h>
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 /* 8064 machine driver */
 #define PM8921_GPIO_BASE		NR_GPIO_IRQS
 #define PM8921_GPIO_PM_TO_SYS(pm_gpio)  (pm_gpio - 1 + PM8921_GPIO_BASE)
@@ -43,6 +49,20 @@
 
 #define MSM_SLIM_0_RX_MAX_CHANNELS		2
 #define MSM_SLIM_0_TX_MAX_CHANNELS		4
+#ifdef CONFIG_LGE_AUDIO
+//BT_SCO_WB
+
+#define BTSCO_RATE_8KHZ 8000
+#define BTSCO_RATE_16KHZ 16000
+
+static int msm_btsco_rate = BTSCO_RATE_8KHZ;
+
+static const char * const btsco_rate_text[] = {"8000", "16000"};
+static const struct soc_enum msm_btsco_enum[] = {
+		SOC_ENUM_SINGLE_EXT(2, btsco_rate_text),
+};
+
+#endif/*                 */
 
 #define SAMPLE_RATE_8KHZ 8000
 #define SAMPLE_RATE_16KHZ 16000
@@ -53,6 +73,13 @@
 #define TOP_SPK_AMP_POS		0x4
 #define TOP_SPK_AMP_NEG		0x8
 #define TOP_SPK_AMP		0x10
+
+#ifdef CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER
+#define BOTTOM_SPK_AMP	0x20
+
+#define TPA2028D_DUAL_TOP_SPK	0
+#define TPA2028D_DUAL_BOTTOM_SPK	1
+#endif
 
 
 #define GPIO_AUX_PCM_DOUT 43
@@ -86,8 +113,13 @@ enum {
 	INCALL_REC_STEREO,
 };
 
+#ifdef CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER
+static u32 top_spk_pamp_gpio  = PM8921_GPIO_PM_TO_SYS(19);
+static u32 bottom_spk_pamp_gpio = PM8921_GPIO_PM_TO_SYS(20);
+#else
 static u32 top_spk_pamp_gpio  = PM8921_GPIO_PM_TO_SYS(18);
 static u32 bottom_spk_pamp_gpio = PM8921_GPIO_PM_TO_SYS(19);
+#endif
 static int msm_spk_control;
 static int msm_ext_bottom_spk_pamp;
 static int msm_ext_top_spk_pamp;
@@ -97,6 +129,12 @@ static int msm_slim_3_rx_ch = 1;
 
 static int msm_slim_1_rate = SAMPLE_RATE_8KHZ;
 static int msm_btsco_ch = 1;
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+static int msm_slimbus_es325_sample_rate = 48000;
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 static int msm_slim_1_rx_ch = 1;
 static int msm_slim_1_tx_ch = 1;
 
@@ -221,6 +259,21 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 			usleep_range(4000, 4000);
 		}
 
+#if defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+
+	} else if (spk & BOTTOM_SPK_AMP ) {
+		pr_debug("%s():bottom_spk_amp_state = 0x%x spk_event = 0x%x\n",
+				__func__, msm_ext_bottom_spk_pamp, spk);
+
+		if ( msm_ext_bottom_spk_pamp & BOTTOM_SPK_AMP ) {
+				pr_debug("%s() External Bottom Speaker Ampl already"
+					"turned on. spk = 0x%08x\n", __func__, spk);
+				return;
+		}
+		msm_ext_bottom_spk_pamp |= spk;
+
+			set_amp_gain(TPA2028D_DUAL_BOTTOM_SPK,SPK_ON);
+#endif
 	} else if (spk & (TOP_SPK_AMP_POS | TOP_SPK_AMP_NEG | TOP_SPK_AMP)) {
 
 		pr_debug("%s():top_spk_amp_state = 0x%x spk_event = 0x%x\n",
@@ -243,6 +296,8 @@ static void msm_ext_spk_power_amp_on(u32 spk)
 
 #ifdef CONFIG_SND_SOC_TPA2028D
 			set_amp_gain(SPK_ON);
+#elif defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+			set_amp_gain(TPA2028D_DUAL_TOP_SPK,SPK_ON);
 #else
 			msm_enable_ext_spk_amp_gpio(top_spk_pamp_gpio);
 			pr_debug("%s: sleeping 4 ms after turning on "
@@ -296,6 +351,9 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 #ifdef CONFIG_SND_SOC_TPA2028D
 		set_amp_gain(SPK_OFF);
 		msm_ext_top_spk_pamp = 0;
+#elif defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		set_amp_gain(TPA2028D_DUAL_TOP_SPK,SPK_OFF);
+		msm_ext_top_spk_pamp = 0;
 #else
 		gpio_direction_output(top_spk_pamp_gpio, 0);
 		gpio_free(top_spk_pamp_gpio);
@@ -306,7 +364,14 @@ static void msm_ext_spk_power_amp_off(u32 spk)
 
 		usleep_range(4000, 4000);
 #endif
-	} else  {
+		}
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		else if ( spk & BOTTOM_SPK_AMP  ) {
+			msm_ext_bottom_spk_pamp &=  ~BOTTOM_SPK_AMP;
+			set_amp_gain(TPA2028D_DUAL_BOTTOM_SPK,SPK_OFF);
+		}
+#endif
+		else	{
 
 		pr_err("%s: ERROR : Invalid Ext Spk Ampl. spk = 0x%08x\n",
 			__func__, spk);
@@ -324,16 +389,22 @@ static void msm_ext_control(struct snd_soc_codec *codec)
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Neg");
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Pos");
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Neg");
-#ifdef CONFIG_SND_SOC_TPA2028D
+#if defined (CONFIG_SND_SOC_TPA2028D) || defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
 		snd_soc_dapm_enable_pin(dapm, "Ext Spk Top");
+#endif
+#if defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom");
 #endif
 	} else {
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk Bottom Pos");
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk Bottom Neg");
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk Top Pos");
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk Top Neg");
-#ifdef CONFIG_SND_SOC_TPA2028D
+#if defined (CONFIG_SND_SOC_TPA2028D) || defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
 		snd_soc_dapm_disable_pin(dapm, "Ext Spk Top");
+#endif
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		snd_soc_dapm_disable_pin(dapm, "Ext Spk Bottom");
 #endif
 	}
 
@@ -376,6 +447,10 @@ static int msm_spkramp_event(struct snd_soc_dapm_widget *w,
 			msm_ext_spk_power_amp_on(TOP_SPK_AMP_NEG);
 		else if  (!strncmp(w->name, "Ext Spk Top", 12))
 			msm_ext_spk_power_amp_on(TOP_SPK_AMP);
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		else if  (!strncmp(w->name, "Ext Spk Bottom", 14))
+			msm_ext_spk_power_amp_on(BOTTOM_SPK_AMP);
+#endif
 		else {
 			pr_err("%s() Invalid Speaker Widget = %s\n",
 					__func__, w->name);
@@ -393,6 +468,11 @@ static int msm_spkramp_event(struct snd_soc_dapm_widget *w,
 			msm_ext_spk_power_amp_off(TOP_SPK_AMP_NEG);
 		else if  (!strncmp(w->name, "Ext Spk Top", 12))
 			msm_ext_spk_power_amp_off(TOP_SPK_AMP);
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+		else if  (!strncmp(w->name, "Ext Spk Bottom", 14))
+			msm_ext_spk_power_amp_off(BOTTOM_SPK_AMP);
+
+#endif
 		else {
 			pr_err("%s() Invalid Speaker Widget = %s\n",
 					__func__, w->name);
@@ -500,6 +580,9 @@ static const struct snd_soc_dapm_widget apq8064_dapm_widgets[] = {
 	SND_SOC_DAPM_SPK("Ext Spk Top Pos", msm_spkramp_event),
 	SND_SOC_DAPM_SPK("Ext Spk Top Neg", msm_spkramp_event),
 	SND_SOC_DAPM_SPK("Ext Spk Top", msm_spkramp_event),
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+	SND_SOC_DAPM_SPK("Ext Spk Bottom", msm_spkramp_event),
+#endif
 
 	/************ Analog MICs ************/
 	/**
@@ -511,11 +594,15 @@ static const struct snd_soc_dapm_widget apq8064_dapm_widgets[] = {
 	SND_SOC_DAPM_MIC("Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCRight Headset Mic", NULL),
 	SND_SOC_DAPM_MIC("ANCLeft Headset Mic", NULL),
-
+#ifdef CONFIG_LGE_AUDIO
+	SND_SOC_DAPM_MIC("Handset Mic", NULL),
+	SND_SOC_DAPM_MIC("Handset SubMic", NULL),
+#else
 #ifdef CONFIG_SND_SOC_DUAL_AMIC
 	SND_SOC_DAPM_MIC("Handset Mic", NULL),
 	SND_SOC_DAPM_MIC("Handset SubMic", NULL),
 #endif
+#endif/*                 */
 
 	/*********** Digital Mics ***************/
 	SND_SOC_DAPM_MIC("Digital Mic1", NULL),
@@ -534,7 +621,7 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 	{"HEADPHONE", NULL, "LDO_H"},
 
 	/* Speaker path */
-#ifdef CONFIG_SND_SOC_TPA2028D
+#if defined (CONFIG_SND_SOC_TPA2028D) || defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
 	{"Ext Spk Top", NULL, "LINEOUT1"},
 #else
 	{"Ext Spk Bottom Pos", NULL, "LINEOUT1"},
@@ -544,7 +631,23 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 	{"Ext Spk Top Neg", NULL, "LINEOUT4"},
 	{"Ext Spk Top", NULL, "LINEOUT5"},
 #endif
+#if defined (CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+	{"Ext Spk Bottom", NULL, "LINEOUT2"},
+#endif
 	/************   Analog MIC Paths  ************/
+#ifdef CONFIG_LGE_AUDIO
+	/* Handset Mic */
+	{"AMIC1", NULL, "MIC BIAS1 External"},
+	{"MIC BIAS1 External", NULL, "Handset Mic"},
+
+	{"AMIC3", NULL, "MIC BIAS3 External"},
+	{"MIC BIAS3 External", NULL, "Handset SubMic"},
+
+	/* Headset Mic */
+	{"AMIC2", NULL, "MIC BIAS2 External"},
+	{"MIC BIAS2 External", NULL, "Headset Mic"},
+
+#else
 #ifdef CONFIG_SND_SOC_DUAL_AMIC
 	/* Handset Mic */
 	{"AMIC1", NULL, "MIC BIAS1 External"},
@@ -565,6 +668,7 @@ static const struct snd_soc_dapm_route apq8064_common_audio_map[] = {
 	{"AMIC4", NULL, "MIC BIAS1 Internal2"},
 	{"MIC BIAS1 Internal2", NULL, "ANCLeft Headset Mic"},
 #endif
+#endif/*                */
 };
 
 static const struct snd_soc_dapm_route apq8064_mtp_audio_map[] = {
@@ -695,6 +799,15 @@ static const struct soc_enum msm_enum[] = {
 	SOC_ENUM_SINGLE_EXT(2, hdmi_rate),
 };
 
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+static const char *slimbus_sample_rate_text[] = {"8000", "16000", "48000"};
+static const struct soc_enum msm_slimbus_es325_sample_rate_enum[] = {
+		SOC_ENUM_SINGLE_EXT(3, slimbus_sample_rate_text),
+};
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 static const char * const slim1_rate_text[] = {"8000", "16000", "48000"};
 static const struct soc_enum msm_slim_1_rate_enum[] = {
 	SOC_ENUM_SINGLE_EXT(3, slim1_rate_text),
@@ -812,6 +925,39 @@ static int msm_slim_1_rate_put(struct snd_kcontrol *kcontrol,
 		 msm_slim_1_rate);
 	return 0;
 }
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+static int msm_slimbus_es325_sample_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_slimbus_es325_sample_rate  = %d", __func__,
+					msm_slimbus_es325_sample_rate);
+	ucontrol->value.integer.value[0] = msm_slimbus_es325_sample_rate;
+	return 0;
+}
+
+static int msm_slimbus_es325_sample_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+	case 8000:
+		msm_slimbus_es325_sample_rate = 8000;
+		break;
+	case 16000:
+		msm_slimbus_es325_sample_rate = 16000;
+		break;
+	case 48000:
+	default:
+		msm_slimbus_es325_sample_rate = 48000;
+		break;
+	}
+	pr_debug("%s: msm_slimbus_es325_sample_rate = %d\n", __func__,
+					msm_slimbus_es325_sample_rate);
+	return 0;
+}
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 static int msm_incall_rec_mode_get(struct snd_kcontrol *kcontrol,
 					struct snd_ctl_elem_value *ucontrol)
@@ -863,6 +1009,36 @@ static int msm_hdmi_rate_get(struct snd_kcontrol *kcontrol,
 	ucontrol->value.integer.value[0] = hdmi_rate_variable;
 	return 0;
 }
+#ifdef CONFIG_LGE_AUDIO
+//BT_SCO_WB
+static int msm_btsco_rate_get(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	pr_debug("%s: msm_btsco_rate  = %d", __func__,
+					msm_btsco_rate);
+	ucontrol->value.integer.value[0] = msm_btsco_rate;
+	return 0;
+}
+
+static int msm_btsco_rate_put(struct snd_kcontrol *kcontrol,
+				struct snd_ctl_elem_value *ucontrol)
+{
+	switch (ucontrol->value.integer.value[0]) {
+	case 8000:
+		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		break;
+	case 16000:
+		msm_btsco_rate = BTSCO_RATE_16KHZ;
+		break;
+	default:
+		msm_btsco_rate = BTSCO_RATE_8KHZ;
+		break;
+	}
+	pr_debug("%s: msm_btsco_rate = %d\n", __func__,
+					msm_btsco_rate);
+	return 0;
+}
+#endif/*                 */
 
 static const struct snd_kcontrol_new tabla_msm_controls[] = {
 	SOC_ENUM_EXT("Speaker Function", msm_enum[0], msm_get_spk,
@@ -879,11 +1055,23 @@ static const struct snd_kcontrol_new tabla_msm_controls[] = {
 			msm_incall_rec_mode_get, msm_incall_rec_mode_put),
 	SOC_ENUM_EXT("SLIM_3_RX Channels", msm_enum[1],
 		msm_slim_3_rx_ch_get, msm_slim_3_rx_ch_put),
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	SOC_ENUM_EXT("SLIMBus SampleRate", msm_slimbus_es325_sample_rate_enum[0],
+		msm_slimbus_es325_sample_rate_get, msm_slimbus_es325_sample_rate_put),
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 	SOC_ENUM_EXT("HDMI_RX Channels", msm_enum[3],
 		msm_hdmi_rx_ch_get, msm_hdmi_rx_ch_put),
 	SOC_ENUM_EXT("HDMI RX Rate", msm_enum[4],
 					msm_hdmi_rate_get,
 					msm_hdmi_rate_put),
+#ifdef CONFIG_LGE_AUDIO
+//BT_SCO_WB
+	SOC_ENUM_EXT("Internal BTSCO SampleRate", msm_btsco_enum[0],
+		msm_btsco_rate_get, msm_btsco_rate_put),
+#endif/*                */
 };
 
 static void *def_tabla_mbhc_cal(void)
@@ -973,6 +1161,12 @@ static int msm_hw_params(struct snd_pcm_substream *substream,
 	unsigned int rx_ch[SLIM_MAX_RX_PORTS], tx_ch[SLIM_MAX_TX_PORTS];
 	unsigned int rx_ch_cnt = 0, tx_ch_cnt = 0;
 	unsigned int num_tx_ch = 0;
+//                                                          
+// Check external EC reference from codec
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	int es325_tx1_enabled = es325_get_tx1_enabled();
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 
 	if (substream->stream == SNDRV_PCM_STREAM_PLAYBACK) {
@@ -1001,6 +1195,20 @@ static int msm_hw_params(struct snd_pcm_substream *substream,
 		}
 	} else {
 
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+		if (codec_dai->id  == 2 || codec_dai->id == 12)
+			num_tx_ch =  msm_slim_0_tx_ch;
+		else if (codec_dai->id == 5 && (es325_tx1_enabled == 0)) {
+			/* DAI 5 is used for external EC reference from codec.
+			 * Since Rx is fed as reference for EC, the config of
+			 * this DAI is based on that of the Rx path.
+			 */
+			pr_debug("%s:enable External EC reference for default EC\n",
+					__func__);
+			num_tx_ch =  msm_slim_0_rx_ch;
+		}
+#else /* CONFIG_SND_SOC_ES325_SLIM */
 		if (codec_dai->id  == 2)
 			num_tx_ch =  msm_slim_0_tx_ch;
 		else if (codec_dai->id == 5) {
@@ -1010,6 +1218,8 @@ static int msm_hw_params(struct snd_pcm_substream *substream,
 			 */
 			num_tx_ch =  msm_slim_0_rx_ch;
 		}
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 		pr_debug("%s: %s_tx_dai_id_%d_ch=%d\n", __func__,
 			codec_dai->name, codec_dai->id, num_tx_ch);
@@ -1240,7 +1450,7 @@ static int msm_slimbus_4_hw_params(struct snd_pcm_substream *substream,
 static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int err, ret;
-#ifndef CONFIG_SWITCH_FSA8008
+#if !defined(CONFIG_SWITCH_MAX1462X) && !defined(CONFIG_SWITCH_FSA8008)
 	uint32_t revision;
 #endif
 	struct snd_soc_codec *codec = rtd->codec;
@@ -1260,7 +1470,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 	snd_soc_dapm_add_routes(dapm, apq8064_common_audio_map,
 		ARRAY_SIZE(apq8064_common_audio_map));
 
-	if (machine_is_apq8064_mtp() || machine_is_apq8064_mako()) {
+	if (machine_is_apq8064_mtp()) {
 		snd_soc_dapm_add_routes(dapm, apq8064_mtp_audio_map,
 			ARRAY_SIZE(apq8064_mtp_audio_map));
 	} else  {
@@ -1268,13 +1478,16 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 			ARRAY_SIZE(apq8064_liquid_cdp_audio_map));
 	}
 
-#ifdef CONFIG_SND_SOC_TPA2028D
+#if defined(CONFIG_SND_SOC_TPA2028D) || defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Top");
 #else
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Pos");
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom Neg");
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Pos");
 	snd_soc_dapm_enable_pin(dapm, "Ext Spk Top Neg");
+#endif
+#if defined(CONFIG_SND_SOC_TPA2028D_DUAL_SPEAKER)
+	snd_soc_dapm_enable_pin(dapm, "Ext Spk Bottom");
 #endif
 
 	snd_soc_dapm_sync(dapm);
@@ -1306,7 +1519,7 @@ static int msm_audrx_init(struct snd_soc_pcm_runtime *rtd)
 
 	codec_clk = clk_get(cpu_dai->dev, "osr_clk");
 
-#ifndef CONFIG_SWITCH_FSA8008
+#if !defined(CONFIG_SWITCH_MAX1462X) && !defined(CONFIG_SWITCH_FSA8008)
 	/* APQ8064 Rev 1.1 CDP and Liquid have mechanical switch */
 	revision = socinfo_get_version();
 	if (apq8064_hs_detect_use_gpio != -1) {
@@ -1370,6 +1583,13 @@ static int msm_slim_0_rx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	pr_debug("%s()\n", __func__);
 	rate->min = rate->max = 48000;
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	pr_debug("%s() sample rate(%d)\n", __func__, msm_slimbus_es325_sample_rate);
+	rate->min = rate->max = msm_slimbus_es325_sample_rate;//48000;
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 	channels->min = channels->max = msm_slim_0_rx_ch;
 
 	return 0;
@@ -1386,6 +1606,13 @@ static int msm_slim_0_tx_be_hw_params_fixup(struct snd_soc_pcm_runtime *rtd,
 
 	pr_debug("%s()\n", __func__);
 	rate->min = rate->max = 48000;
+//                                                          
+// Changed SLIMBus Sample Rate 48KHz to 8KHz via eS325, Power consumption
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	pr_debug("%s() sample rate(%d)\n", __func__, msm_slimbus_es325_sample_rate);
+	rate->min = rate->max = msm_slimbus_es325_sample_rate;//48000;
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 	channels->min = channels->max = msm_slim_0_tx_ch;
 
 	return 0;
@@ -1552,7 +1779,15 @@ static int msm_auxpcm_be_params_fixup(struct snd_soc_pcm_runtime *rtd,
 					SNDRV_PCM_HW_PARAM_CHANNELS);
 
 	/* PCM only supports mono output with 8khz sample rate */
+#ifdef CONFIG_LGE_AUDIO 
+//BT_SCO_WB
+	pr_debug("%s: auxpcm rate set = %d\n", __func__, msm_btsco_rate);
+	rate->min = rate->max = msm_btsco_rate; //msm_auxpcm_rate;
+#else//QCT_Original
+	/* PCM only supports mono output with 8khz sample rate */
 	rate->min = rate->max = 8000;
+#endif/*                 */
+
 	channels->min = channels->max = 1;
 
 	return 0;

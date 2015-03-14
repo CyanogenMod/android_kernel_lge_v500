@@ -375,6 +375,11 @@ static void __pm8xxx_calib_ccadc(int sample_count)
 	u16 result;
 	int i, rc;
 
+#if defined(CONFIG_LGE_PM_EXT_GAUGE)
+	/* qualcomm BMS is not used. */
+	return;
+#endif
+
 	if (!the_chip) {
 		pr_err("chip not initialized\n");
 		return;
@@ -571,7 +576,7 @@ out:
 #define CCADC_IBAT_ANA_PARAM	0x1A
 static int ccadc_get_rsense_voltage(int *voltage_uv)
 {
-	u16 raw;
+	u16 raw = 0;
 	int result;
 	int rc = 0;
 
@@ -806,6 +811,11 @@ static int pm8xxx_ccadc_resume(struct device *dev)
 	int batt_temp = 0;
 	unsigned long current_time_sec;
 	unsigned long time_since_last_calib;
+
+#if defined(CONFIG_LGE_PM_EXT_GAUGE)
+	/* qualcomm BMS is not used. */
+	return 0;
+#endif
 
 	rc = get_batt_temp(the_chip, &batt_temp);
 	if (rc) {

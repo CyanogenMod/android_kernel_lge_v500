@@ -478,6 +478,7 @@ static struct pm8921_charger_platform_data apq8064_pm8921_chg_pdata __devinitdat
 	.led_src_config  = LED_SRC_5V,
 	.rconn_mohm	 = 37,
 	.eoc_check_soc  = EOC_CHECK_SOC,
+	.enable_tcxo_warmup_delay = true,	
 };
 
 static struct pm8xxx_ccadc_platform_data

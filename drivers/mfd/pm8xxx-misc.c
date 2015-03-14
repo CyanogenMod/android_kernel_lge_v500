@@ -1195,6 +1195,9 @@ int pm8xxx_hsed_bias_control(enum pm8xxx_hsed_bias bias, bool enable)
 }
 EXPORT_SYMBOL(pm8xxx_hsed_bias_control);
 
+#if defined (CONFIG_MACH_APQ8064_OMEGAR)
+extern int pmic_reset_irq;
+#endif
 static int __devinit pm8xxx_misc_probe(struct platform_device *pdev)
 {
 	const struct pm8xxx_misc_platform_data *pdata = pdev->dev.platform_data;
@@ -1245,6 +1248,11 @@ static int __devinit pm8xxx_misc_probe(struct platform_device *pdev)
 	spin_unlock_irqrestore(&pm8xxx_misc_chips_lock, flags);
 
 	platform_set_drvdata(pdev, chip);
+
+#if defined (CONFIG_MACH_APQ8064_OMEGAR)
+    disable_irq_nosync(pmic_reset_irq);
+	pm8xxx_hard_reset_config(PM8XXX_DISABLE_HARD_RESET);
+#endif
 
 	return rc;
 

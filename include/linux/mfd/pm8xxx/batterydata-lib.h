@@ -18,11 +18,17 @@
 #define FCC_CC_COLS		5
 #define FCC_TEMP_COLS		8
 
+#if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#define PC_CC_ROWS             30
+#define PC_CC_COLS             13
+#define PC_TEMP_ROWS		31
+#define PC_TEMP_COLS		8
+#else
 #define PC_CC_ROWS             29
 #define PC_CC_COLS             13
-
 #define PC_TEMP_ROWS		29
 #define PC_TEMP_COLS		8
+#endif
 
 #define MAX_SINGLE_LUT_COLS	20
 
@@ -73,6 +79,13 @@ enum battery_type {
 	BATT_UNKNOWN = 0,
 	BATT_PALLADIUM,
 	BATT_DESAY,
+#ifdef CONFIG_LGE_PM
+	BATT_LGE, /*                                                              */
+	BATT_1900_LGE,
+	BATT_2100_LGE,
+	BATT_2200_LGE,
+	BATT_4600_LGE
+#endif
 };
 
 /**
@@ -108,6 +121,17 @@ struct bms_battery_data {
 	defined(CONFIG_PM8921_BMS_MODULE)
 extern struct bms_battery_data  palladium_1500_data;
 extern struct bms_battery_data  desay_5200_data;
+
+#ifdef CONFIG_LGE_PM
+#if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+extern struct bms_battery_data  LGE_4600_PMH_data;
+#else
+extern struct bms_battery_data  lge_1900_data;
+extern struct bms_battery_data  lge_1840_data;
+extern struct bms_battery_data  LGE_2100_PMH_data;
+extern struct bms_battery_data  LGE_2200_PMH_data;
+#endif
+#endif
 
 int interpolate_fcc(struct single_row_lut *fcc_temp_lut, int batt_temp);
 int interpolate_scalingfactor(struct sf_lut *sf_lut, int row_entry, int pc);

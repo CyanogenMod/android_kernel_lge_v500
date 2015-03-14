@@ -1686,6 +1686,11 @@ static void hub_free_dev(struct usb_device *udev)
 		hcd->driver->free_dev(hcd, udev);
 }
 
+#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+static int modem_enumeration_check = 0;
+module_param(modem_enumeration_check, int, S_IRUGO | S_IWUSR);
+#endif
+
 /**
  * usb_disconnect - disconnect a device (usbcore-internal)
  * @pdev: pointer to device being disconnected
@@ -1714,6 +1719,11 @@ void usb_disconnect(struct usb_device **pdev)
 	usb_set_device_state(udev, USB_STATE_NOTATTACHED);
 	dev_info(&udev->dev, "USB disconnect, device number %d\n",
 			udev->devnum);
+
+#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+	modem_enumeration_check = 0;
+	printk("%s : set modem_enumeration_check to 0!\n", __func__);
+#endif
 
 #ifdef CONFIG_USB_OTG
 	if (udev->bus->hnp_support && udev->portnum == udev->bus->otg_port) {
@@ -2037,6 +2047,13 @@ int usb_new_device(struct usb_device *udev)
 
 	/* Tell the world! */
 	announce_device(udev);
+
+#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+	if(udev->descriptor.idProduct == 0x9008)
+		modem_enumeration_check = 0x1;
+	else if(udev->descriptor.idProduct == 0x9048)
+		modem_enumeration_check = 0x3;
+#endif
 
 	device_enable_async_suspend(&udev->dev);
 
@@ -3161,6 +3178,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			!(hcd->driver->flags & HCD_USB3) &&
 			!(hcd->driver->flags & HCD_OLD_ENUM)) {
 			struct usb_device_descriptor *buf;
+			ushort idvendor;
 			int r = 0;
 
 #define GET_DESCRIPTOR_BUFSIZE	64
@@ -3199,6 +3217,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			}
 			udev->descriptor.bMaxPacketSize0 =
 					buf->bMaxPacketSize0;
+			idvendor = le16_to_cpu(buf->idVendor);
 			kfree(buf);
 
 			/*
@@ -3206,7 +3225,7 @@ hub_port_init (struct usb_hub *hub, struct usb_device *udev, int port1,
 			 * second reset which results in failure due to
 			 * speed change.
 			 */
-			if (le16_to_cpu(buf->idVendor) != 0x1a0a) {
+			if (!r && le16_to_cpu(idvendor) != 0x1a0a) {
 				retval = hub_port_reset(hub, port1, udev,
 							 delay, false);
 				if (retval < 0)	/* error or disconnect */

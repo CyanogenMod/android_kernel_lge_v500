@@ -267,6 +267,13 @@ static void notification_available_cb(struct urb *urb)
 	switch (ctrl->bNotificationType) {
 	case USB_CDC_NOTIFY_RESPONSE_AVAILABLE:
 		dev->resp_avail_cnt++;
+		/* If MUX is not enabled, wakeup up the open process
+		* upon first notify response available.
+		*/
+		if (!test_bit(RMNET_CTRL_DEV_READY, &dev->status)) {
+		 set_bit(RMNET_CTRL_DEV_READY, &dev->status);
+		 wake_up(&dev->open_wait_queue);
+		}
 
 		/* If MUX is not enabled, wakeup up the open process
 		 * upon first notify response available.
@@ -971,6 +978,9 @@ int rmnet_usb_ctrl_probe(struct usb_interface *intf,
 		set_bit(RMNET_CTRL_DEV_READY, &dev->status);
 		wake_up(&dev->open_wait_queue);
 	}
+
+//	set_bit(RMNET_CTRL_DEV_READY, &dev->status);
+//	wake_up(&dev->open_wait_queue);
 
 	return 0;
 }

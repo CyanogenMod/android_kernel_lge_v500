@@ -81,17 +81,29 @@ struct pm8921_bms_platform_data {
 	int				chg_term_ua;
 	int				normal_voltage_calc_ms;
 	int				low_voltage_calc_ms;
-	int				disable_flat_portion_ocv;
-	int				ocv_dis_high_soc;
-	int				ocv_dis_low_soc;
+        int                             disable_flat_portion_ocv;
+        int                             ocv_dis_high_soc;
+        int                             ocv_dis_low_soc;
 	int				low_voltage_detect;
 	int				vbatt_cutoff_retries;
 	int				high_ocv_correction_limit_uv;
 	int				low_ocv_correction_limit_uv;
 	int				hold_soc_est;
+#ifdef CONFIG_WIRELESS_CHARGER
+        int                             bms_support_wlc;
+        int                             (*wlc_is_plugged)(void);
+#endif
+#ifdef CONFIG_LGE_PM
+	/* MAKO patch */
+	int				eoc_check_soc;
+	int 			first_fixed_iavg_ma;
+#endif
 };
 
 #if defined(CONFIG_PM8921_BMS) || defined(CONFIG_PM8921_BMS_MODULE)
+#if !defined(CONFIG_LGE_PM_EXT_GAUGE)
+#define BMS_SYSFS_RESET
+#endif
 /**
  * pm8921_bms_get_vsense_avg - return the voltage across the sense
  *				resitor in microvolts

@@ -295,6 +295,10 @@ pm8xxx_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 	int rc;
 	u8 value[4];
 	unsigned long secs;
+#ifdef CONFIG_RTC_PWROFF_ALARM
+	u8 ctrl_reg;
+#endif
+
 	struct pm8xxx_rtc *rtc_dd = dev_get_drvdata(dev);
 
 	rc = pm8xxx_read_wrapper(rtc_dd, value, rtc_dd->alarm_rw_base,
@@ -303,7 +307,13 @@ pm8xxx_rtc_read_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 		dev_err(dev, "RTC alarm time read failed\n");
 		return rc;
 	}
-
+#ifdef CONFIG_RTC_PWROFF_ALARM
+	ctrl_reg = rtc_dd->ctrl_reg;
+	if (ctrl_reg & PM8xxx_RTC_ALARM_ENABLE)
+		alarm->enabled = true;
+	else
+		alarm->enabled = false;
+#endif
 	secs = value[0] | (value[1] << 8) | (value[2] << 16) | \
 						 (value[3] << 24);
 
@@ -349,12 +359,38 @@ rtc_rw_fail:
 	spin_unlock_irqrestore(&rtc_dd->ctrl_reg_lock, irq_flags);
 	return rc;
 }
+#ifdef CONFIG_RTC_PWROFF_ALARM
+static int
+pm8xxx_rtc_alarm_proc(struct device *dev, struct seq_file *seq)
+{
+	int rc;
+	unsigned long irq_flags;
+	struct pm8xxx_rtc *rtc_dd = dev_get_drvdata(dev);
+	u8 ctrl_reg;
 
+	spin_lock_irqsave(&rtc_dd->ctrl_reg_lock, irq_flags);
+	ctrl_reg = rtc_dd->ctrl_reg;
+	if (ctrl_reg & PM8xxx_RTC_ALARM_ENABLE){
+		rc = 1;
+	}else{
+		rc = 0;
+	}
+	spin_unlock_irqrestore(&rtc_dd->ctrl_reg_lock, irq_flags);
+	seq_printf(seq, "rtc_alarm_state\t: %s\n",
+		     (rc) ? "yes" : "no");
+
+	return 0;
+}
+
+#endif
 static struct rtc_class_ops pm8xxx_rtc_ops = {
 	.read_time	= pm8xxx_rtc_read_time,
 	.set_alarm	= pm8xxx_rtc_set_alarm,
 	.read_alarm	= pm8xxx_rtc_read_alarm,
 	.alarm_irq_enable = pm8xxx_rtc_alarm_irq_enable,
+#ifdef CONFIG_RTC_PWROFF_ALARM
+	.proc = pm8xxx_rtc_alarm_proc,
+#endif
 };
 
 static irqreturn_t pm8xxx_alarm_trigger(int irq, void *dev_id)

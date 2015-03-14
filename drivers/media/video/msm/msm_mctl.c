@@ -648,6 +648,7 @@ static void msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 	struct msm_sensor_ctrl_t *s_ctrl = get_sctrl(p_mctl->sensor_sdev);
 	struct msm_camera_sensor_info *sinfo =
 		(struct msm_camera_sensor_info *) s_ctrl->sensordata;
+	pr_err("%s called\n", __func__); /*                                                                            */
 	mutex_lock(&p_mctl->lock);
 	if (p_mctl->opencnt) {
 		v4l2_subdev_call(p_mctl->sensor_sdev, core, ioctl,
@@ -686,6 +687,8 @@ static void msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 		}
 
 		v4l2_subdev_call(p_mctl->sensor_sdev, core, s_power, 0);
+	pr_err("%s called X\n", __func__); /*                                                                            */
+	p_mctl->hardware_running = 0; /*                                                                            */
 
 		v4l2_subdev_call(p_mctl->ispif_sdev,
 				core, ioctl, VIDIOC_MSM_ISPIF_REL, NULL);
@@ -695,6 +698,9 @@ static void msm_mctl_release(struct msm_cam_media_controller *p_mctl)
 		pm_qos_remove_request(&p_mctl->pm_qos_req_list);
 
 		p_mctl->opencnt--;
+/*                                                                        */
+	if(&(p_mctl->wake_lock.link) != NULL)
+/*                                                                      */
 		wake_unlock(&p_mctl->wake_lock);
 	}
 	mutex_unlock(&p_mctl->lock);
@@ -802,14 +808,18 @@ int msm_mctl_init(struct msm_cam_v4l2_device *pcam)
 	pmctl->sensor_sdev = pcam->sensor_sdev;
 	pmctl->sdata = pcam->sdata;
 	v4l2_set_subdev_hostdata(pcam->sensor_sdev, pmctl);
-
+/*                                                                  */
 #ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	pmctl->client = msm_camera_v4l2_get_ion_client(pcam);
+#else		
 	if (!pmctl->client) {
 		pmctl->client = msm_ion_client_create(-1, "camera");
 		kref_init(&pmctl->refcount);
 	}
 #endif
-
+#endif
+/*                                                                */
 	return 0;
 }
 
@@ -824,7 +834,13 @@ int msm_mctl_free(struct msm_cam_v4l2_device *pcam)
 		pr_err("%s: invalid mctl controller", __func__);
 		return -EINVAL;
 	}
-
+/*                                                                  */
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+    msm_camera_v4l2_put_ion_client(pcam);
+#endif
+#endif
+/*                                                                */
 	mutex_destroy(&pmctl->lock);
 	wake_lock_destroy(&pmctl->wake_lock);
 	/*clear out mctl fields*/
@@ -901,7 +917,15 @@ static int msm_mctl_dev_open(struct file *f)
 			pcam->mctl_node.pvdev);
 
 	pcam_inst->vbqueue_initialized = 0;
+/*                                                                  */
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+	pmctl->client = msm_camera_v4l2_get_ion_client(pcam);
+#endif
+#else
 	kref_get(&pmctl->refcount);
+#endif
+/*                                                                */
 	f->private_data = &pcam_inst->eventHandle;
 
 	D("f->private_data = 0x%x, pcam = 0x%x\n",
@@ -966,6 +990,12 @@ static int msm_mctl_dev_close(struct file *f)
 	pmctl = msm_cam_server_get_mctl(pcam->mctl_handle);
 	mutex_lock(&pcam->mctl_node.dev_lock);
 	mutex_lock(&pcam_inst->inst_lock);
+/*                                                                  */
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	if (pcam_inst->vbqueue_initialized)
+		vb2_queue_release(&pcam_inst->vid_bufq);	
+#endif
+/*                                                                */
 	D("%s : active %d ", __func__, pcam->mctl_node.active);
 	if (pcam->mctl_node.active == 1) {
 		rc = msm_cam_server_close_mctl_session(pcam);
@@ -988,9 +1018,13 @@ static int msm_mctl_dev_close(struct file *f)
 	    avcs_core_disable_power_collapse(0);
 	    pcam_inst->avtimerOn = 0;
 	}
+/*                                                                  */
+#if !defined(CONFIG_LGE_GK_CAMERA) && !defined(CONFIG_MACH_APQ8064_AWIFI) && !defined(CONFIG_MACH_APQ8064_ALTEV)
 
 	if (pcam_inst->vbqueue_initialized)
 		vb2_queue_release(&pcam_inst->vid_bufq);
+#endif
+/*                                                                */
 	D("%s Closing down instance %p ", __func__, pcam_inst);
 	pcam->mctl_node.dev_inst[pcam_inst->my_index] = NULL;
 	msm_destroy_v4l2_event_queue(&pcam_inst->eventHandle);
@@ -1002,10 +1036,18 @@ static int msm_mctl_dev_close(struct file *f)
 
 	kfree(pcam_inst);
 	f->private_data = NULL;
+/*                                                                  */
+#if defined(CONFIG_LGE_GK_CAMERA) ||defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#ifdef CONFIG_MSM_MULTIMEDIA_USE_ION
+    msm_camera_v4l2_put_ion_client(pcam);
+#endif
+#else
 	if (NULL != pmctl) {
 		D("%s : release ion client", __func__);
 		kref_put(&pmctl->refcount, msm_release_ion_client);
 	}
+#endif
+/*                                                                */
 	mutex_unlock(&pcam->mctl_node.dev_lock);
 	D("%s : use_count %d X ", __func__, pcam->mctl_node.use_count);
 	return rc;

@@ -258,6 +258,12 @@ config BACKLIGHT_MAX8925
 	  If you have a LCD backlight connected to the WLED output of MAX8925
 	  WLED output, say Y here to enable this driver.
 
+config LGE_FOTA_SILENT_RESET
+	tristate "Support Silent Reset for FOTA Update"
+	help
+	  If you want to turn off backlight when FOTA update,
+	  enable this feature.
+
 config BACKLIGHT_APPLE
        tristate "Apple Backlight Driver"
        depends on X86 && ACPI
@@ -361,6 +367,34 @@ config BACKLIGHT_PANDORA
 	  If you have a Pandora console, say Y to enable the
 	  backlight driver.
 
+config BACKLIGHT_LM3630	
+	bool "select lm3630 device as LGE backlight management"
+	help
+	  LGE backlight management (lm3630)
+
+config BACKLIGHT_LM3532
+        bool "select lm3532 device as LGE backlight management"
+        help
+          LGE backlight management (lm3532)
+
+config BACKLIGHT_I2C_BL
+        bool "select I2C BL device as LGE backlight management"
+	default n
+        help
+          LGE backlight management (i2c_bl)
+
+config BACKLIGHT_I2C_BL_LM3532
+        bool "select I2C BL LM3252 device as LGE backlight management"
+	select BACKLIGHT_I2C_BL
+        help
+          LGE backlight management (i2c_bl for LM3532)
+
+config BACKLIGHT_I2C_BL_LP8556
+        bool "select I2C BL LP8556 device as LGE backlight management"
+	select BACKLIGHT_I2C_BL
+        help
+          LGE backlight management (i2c_bl for LP8556)
+
 config BACKLIGHT_LM3530
 	tristate "select lm3530 device as LGE backlight management"
 	help
@@ -371,6 +405,10 @@ config BACKLIGHT_LM3533
 	help
 	  Say Y to enable the backlight driver for TI LM3533.
 
+config LGE_BACKLIGHT_CABC
+	bool "select CABC feature to control backlight brightness by contents"
+	help
+	  IF you have PWM pulse from LCD Connector, say Y here to enable CABC feature.
 endif # BACKLIGHT_CLASS_DEVICE
 
 endif # BACKLIGHT_LCD_SUPPORT

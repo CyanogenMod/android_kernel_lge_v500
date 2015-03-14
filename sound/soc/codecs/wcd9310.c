@@ -39,6 +39,16 @@
 #include "wcd9310.h"
 #include "wcdcal-hwdep.h"
 
+#ifdef CONFIG_LGE_AUDIO
+#define CONFIG_USE_REMOVE_AUX_NOISE //                                       
+#include <linux/regulator/consumer.h> //                                  
+#endif
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+#include <sound/es325-export.h>
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
+
 static int cfilt_adjust_ms = 10;
 module_param(cfilt_adjust_ms, int, 0644);
 MODULE_PARM_DESC(cfilt_adjust_ms, "delay after adjusting cfilt voltage in ms");
@@ -473,6 +483,7 @@ static unsigned short tx_digital_gain_reg[] = {
 	TABLA_A_CDC_TX10_VOL_CTL_GAIN,
 };
 
+struct snd_soc_codec *snd_codec = NULL;
 static int tabla_codec_enable_charge_pump(struct snd_soc_dapm_widget *w,
 		struct snd_kcontrol *kcontrol, int event)
 {
@@ -1192,6 +1203,46 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 	SOC_SINGLE_TLV("HPHR Volume", TABLA_A_RX_HPH_R_GAIN, 0, 12, 1,
 		line_gain),
 
+/*                                                 
+                                                                                     
+ */ 
+#if defined(CONFIG_LGE_AUDIO) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV) /*          */
+	SOC_SINGLE_S8_TLV("RX1 Digital Volume", TABLA_A_CDC_RX1_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX2 Digital Volume", TABLA_A_CDC_RX2_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX3 Digital Volume", TABLA_A_CDC_RX3_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX4 Digital Volume", TABLA_A_CDC_RX4_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX5 Digital Volume", TABLA_A_CDC_RX5_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX6 Digital Volume", TABLA_A_CDC_RX6_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+	SOC_SINGLE_S8_TLV("RX7 Digital Volume", TABLA_A_CDC_RX7_VOL_CTL_B2_CTL,
+		-60, 40, digital_gain),
+
+	SOC_SINGLE_S8_TLV("DEC1 Volume", TABLA_A_CDC_TX1_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC2 Volume", TABLA_A_CDC_TX2_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC3 Volume", TABLA_A_CDC_TX3_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC4 Volume", TABLA_A_CDC_TX4_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC5 Volume", TABLA_A_CDC_TX5_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC6 Volume", TABLA_A_CDC_TX6_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC7 Volume", TABLA_A_CDC_TX7_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC8 Volume", TABLA_A_CDC_TX8_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC9 Volume", TABLA_A_CDC_TX9_VOL_CTL_GAIN, -60, 40,
+		digital_gain),
+	SOC_SINGLE_S8_TLV("DEC10 Volume", TABLA_A_CDC_TX10_VOL_CTL_GAIN, -60,
+		40, digital_gain),
+#else /* qualcomm original code */
 	SOC_SINGLE_S8_TLV("RX1 Digital Volume", TABLA_A_CDC_RX1_VOL_CTL_B2_CTL,
 		-84, 40, digital_gain),
 	SOC_SINGLE_S8_TLV("RX2 Digital Volume", TABLA_A_CDC_RX2_VOL_CTL_B2_CTL,
@@ -1227,6 +1278,8 @@ static const struct snd_kcontrol_new tabla_snd_controls[] = {
 		digital_gain),
 	SOC_SINGLE_S8_TLV("DEC10 Volume", TABLA_A_CDC_TX10_VOL_CTL_GAIN, -84,
 		40, digital_gain),
+#endif
+/*                                                */
 	SOC_SINGLE_S8_TLV("IIR1 INP1 Volume", TABLA_A_CDC_IIR1_GAIN_B1_CTL, -84,
 		40, digital_gain),
 	SOC_SINGLE_S8_TLV("IIR1 INP2 Volume", TABLA_A_CDC_IIR1_GAIN_B2_CTL, -84,
@@ -1466,6 +1519,11 @@ static const struct soc_enum rx2_mix1_inp1_chain_enum =
 static const struct soc_enum rx2_mix1_inp2_chain_enum =
 	SOC_ENUM_SINGLE(TABLA_A_CDC_CONN_RX2_B1_CTL, 4, 12, rx_mix1_text);
 
+#ifdef CONFIG_USE_REMOVE_AUX_NOISE
+static const struct soc_enum rx2_mix1_inp3_chain_enum =
+	SOC_ENUM_SINGLE(TABLA_A_CDC_CONN_RX2_B2_CTL, 0, 12, rx_mix1_text);
+#endif
+
 static const struct soc_enum rx3_mix1_inp1_chain_enum =
 	SOC_ENUM_SINGLE(TABLA_A_CDC_CONN_RX3_B1_CTL, 0, 12, rx_mix1_text);
 
@@ -1613,6 +1671,14 @@ static const struct snd_kcontrol_new rx2_mix1_inp1_mux =
 
 static const struct snd_kcontrol_new rx2_mix1_inp2_mux =
 	SOC_DAPM_ENUM("RX2 MIX1 INP2 Mux", rx2_mix1_inp2_chain_enum);
+
+#ifdef CONFIG_USE_REMOVE_AUX_NOISE
+static const struct snd_kcontrol_new rx1_mix1_inp3_mux =
+	SOC_DAPM_ENUM("RX1 MIX1 INP3 Mux", rx_mix1_inp3_chain_enum);
+
+static const struct snd_kcontrol_new rx2_mix1_inp3_mux =
+	SOC_DAPM_ENUM("RX2 MIX1 INP3 Mux", rx2_mix1_inp3_chain_enum);
+#endif
 
 static const struct snd_kcontrol_new rx3_mix1_inp1_mux =
 	SOC_DAPM_ENUM("RX3 MIX1 INP1 Mux", rx3_mix1_inp1_chain_enum);
@@ -3631,13 +3697,19 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"RX2 MIX1", NULL, "COMP1_CLK"},
 	{"RX3 MIX1", NULL, "COMP2_CLK"},
 	{"RX5 MIX1", NULL, "COMP2_CLK"},
-
+#if defined(CONFIG_ANDROID_SW_IRRC)
+	{"RX7 MIX1", NULL, "COMP2_CLK"},
+#endif
 
 	{"RX1 MIX1", NULL, "RX1 MIX1 INP1"},
 	{"RX1 MIX1", NULL, "RX1 MIX1 INP2"},
 	{"RX1 MIX1", NULL, "RX1 MIX1 INP3"},
 	{"RX2 MIX1", NULL, "RX2 MIX1 INP1"},
 	{"RX2 MIX1", NULL, "RX2 MIX1 INP2"},
+#ifdef CONFIG_USE_REMOVE_AUX_NOISE
+	{"RX2 MIX1", NULL, "RX2 MIX1 INP3"},  
+	{"RX1 MIX1", NULL, "RX1 MIX1 INP3"},   
+#endif	
 	{"RX3 MIX1", NULL, "RX3 MIX1 INP1"},
 	{"RX3 MIX1", NULL, "RX3 MIX1 INP2"},
 	{"RX4 MIX1", NULL, "RX4 MIX1 INP1"},
@@ -3666,6 +3738,10 @@ static const struct snd_soc_dapm_route audio_map[] = {
 	{"RX1 MIX1 INP1", "RX6", "SLIM RX6"},
 	{"RX1 MIX1 INP1", "RX7", "SLIM RX7"},
 	{"RX1 MIX1 INP1", "IIR1", "IIR1"},
+#ifdef CONFIG_USE_REMOVE_AUX_NOISE
+	{"RX1 MIX1 INP3", "IIR1", "IIR1"},  
+	{"RX2 MIX1 INP3", "IIR1", "IIR1"},
+#endif
 	{"RX1 MIX1 INP1", "IIR2", "IIR2"},
 	{"RX1 MIX1 INP2", "RX1", "SLIM RX1"},
 	{"RX1 MIX1 INP2", "RX2", "SLIM RX2"},
@@ -3959,6 +4035,11 @@ static const struct snd_soc_dapm_route tabla_2_x_lineout_2_to_4_map[] = {
 	{"RX6 DSM MUX", "CIC_OUT", "RX6 MIX1"},
 
 	{"LINEOUT4 DAC", NULL, "RX6 DSM MUX"},
+
+#ifdef CONFIG_ANDROID_SW_IRRC
+	{"LINEOUT5 DAC", NULL, "RX7 MIX1"},
+#endif
+
 };
 
 static int tabla_readable(struct snd_soc_codec *ssc, unsigned int reg)
@@ -4165,6 +4246,8 @@ static void tabla_codec_calibrate_hs_polling(struct snd_soc_codec *codec)
 		      n_cic[tabla_codec_mclk_index(tabla)]);
 }
 
+
+
 static int tabla_startup(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
 {
@@ -4176,8 +4259,10 @@ static int tabla_startup(struct snd_pcm_substream *substream,
 	    (tabla_core->dev->parent != NULL))
 		pm_runtime_get_sync(tabla_core->dev->parent);
 
+
 	return 0;
 }
+
 
 static void tabla_shutdown(struct snd_pcm_substream *substream,
 		struct snd_soc_dai *dai)
@@ -4190,6 +4275,12 @@ static void tabla_shutdown(struct snd_pcm_substream *substream,
 		 substream->name, substream->stream);
 	if (tabla->intf_type != WCD9XXX_INTERFACE_TYPE_SLIMBUS)
 		return;
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	pr_debug("%s(): id = %d ch_mask = %d name = %s\n" , __func__,
+		 dai->id, tabla->dai[dai->id-1].ch_mask, tabla->codec->name);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 	if (dai->id <= NUM_CODEC_DAIS) {
 		if (tabla->dai[dai->id-1].ch_mask) {
@@ -4326,6 +4417,12 @@ static int tabla_set_channel_map(struct snd_soc_dai *dai,
 
 	if (dai->id == AIF1_PB || dai->id == AIF2_PB || dai->id == AIF3_PB) {
 		for (i = 0; i < rx_num; i++) {
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+			pr_debug("%s(): rx ch_num[%d]\n",
+					__func__, rx_slot[i]);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 			tabla->dai[dai->id - 1].ch_num[i]  = rx_slot[i];
 			tabla->dai[dai->id - 1].ch_act = 0;
 			tabla->dai[dai->id - 1].ch_tot = rx_num;
@@ -4346,8 +4443,17 @@ static int tabla_set_channel_map(struct snd_soc_dai *dai,
 		}
 
 		tabla->dai[dai->id - 1].ch_act = 0;
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+		for (i = 0; i < tx_num; i++) {
+			tabla->dai[dai->id - 1].ch_num[i]  = tx_slot[i];
+			pr_debug("%s(): tx ch_num[%d]\n", __func__, tx_slot[i]);
+		}
+#else /* CONFIG_SND_SOC_ES325_SLIM */
 		for (i = 0; i < tx_num; i++)
 			tabla->dai[dai->id - 1].ch_num[i]  = tx_slot[i];
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 	}
 	return 0;
 }
@@ -4368,6 +4474,11 @@ static int tabla_get_channel_map(struct snd_soc_dai *dai,
 		return -EINVAL;
 	}
 
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	pr_info("GAC:%s(): dai->id = %d\n", __func__, dai->id);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 	/* for virtual port, codec driver needs to do
 	 * housekeeping, for now should be ok
 	 */
@@ -4766,6 +4877,79 @@ static int tabla_hw_params(struct snd_pcm_substream *substream,
 	return 0;
 }
 
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+static int tabla_es325_hw_params(struct snd_pcm_substream *substream,
+		struct snd_pcm_hw_params *params,
+		struct snd_soc_dai *dai)
+{
+	int rc = 0;
+	pr_info("%s: dai_name = %s DAI-ID %x rate %d num_ch %d\n", __func__,
+			dai->name, dai->id, params_rate(params),
+			params_channels(params));
+
+	rc = tabla_hw_params(substream, params, dai);
+
+	if (es325_remote_route_enable(dai))
+		rc = es325_slim_hw_params(substream, params, dai);
+
+	return rc;
+}
+
+static int tabla_es325_set_channel_map(struct snd_soc_dai *dai,
+				unsigned int tx_num, unsigned int *tx_slot,
+				unsigned int rx_num, unsigned int *rx_slot)
+
+{
+	unsigned int tabla_tx_num = 0;
+	unsigned int tabla_tx_slot[6];
+	unsigned int tabla_rx_num = 0;
+	unsigned int tabla_rx_slot[6];
+	int rc = 0;
+	pr_info("%s(): dai_name = %s DAI-ID %x tx_ch %d rx_ch %d\n",
+			__func__, dai->name, dai->id, tx_num, rx_num);
+
+	if (es325_remote_route_enable(dai)) {
+		rc = tabla_get_channel_map(dai, &tabla_tx_num, tabla_tx_slot,
+					&tabla_rx_num, tabla_rx_slot);
+
+		rc = tabla_set_channel_map(dai, tx_num, tabla_tx_slot, rx_num, tabla_rx_slot);
+
+		rc = es325_slim_set_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+	}
+	else
+		rc = tabla_set_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+
+	return rc;
+}
+
+static int tabla_es325_get_channel_map(struct snd_soc_dai *dai,
+				unsigned int *tx_num, unsigned int *tx_slot,
+				unsigned int *rx_num, unsigned int *rx_slot)
+
+{
+	int rc = 0;
+
+	pr_info("%s(): dai_name = %s DAI-ID %d tx_ch %d rx_ch %d\n",
+			__func__, dai->name, dai->id, *tx_num, *rx_num);
+
+	if (es325_remote_route_enable(dai))
+		rc = es325_slim_get_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+	else
+		rc = tabla_get_channel_map(dai, tx_num, tx_slot, rx_num, rx_slot);
+
+	return rc;
+}
+static struct snd_soc_dai_ops tabla_dai_ops = {
+	.startup = tabla_startup,
+	.shutdown = tabla_shutdown,
+	.hw_params = tabla_es325_hw_params, /* tabla_hw_params, */
+	.set_sysclk = tabla_set_dai_sysclk,
+	.set_fmt = tabla_set_dai_fmt,
+	.set_channel_map = tabla_es325_set_channel_map, /* tabla_set_channel_map, */
+	.get_channel_map = tabla_es325_get_channel_map, /* tabla_get_channel_map, */
+};
+#else  /* CONFIG_SND_SOC_ES325_SLIM */
 static struct snd_soc_dai_ops tabla_dai_ops = {
 	.startup = tabla_startup,
 	.shutdown = tabla_shutdown,
@@ -4775,6 +4959,8 @@ static struct snd_soc_dai_ops tabla_dai_ops = {
 	.set_channel_map = tabla_set_channel_map,
 	.get_channel_map = tabla_get_channel_map,
 };
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 static struct snd_soc_dai_driver tabla_dai[] = {
 	{
@@ -4966,6 +5152,11 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 				break;
 			}
 		}
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+		pr_info("%s: act=%d tot=%d\n", __func__, tabla_p->dai[j].ch_act, tabla_p->dai[j].ch_tot);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 		if (tabla_p->dai[j].ch_act == tabla_p->dai[j].ch_tot) {
 			ret = tabla_codec_enable_chmask(tabla_p,
 							SND_SOC_DAPM_POST_PMU,
@@ -4974,6 +5165,12 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 					tabla_p->dai[j].ch_num,
 					tabla_p->dai[j].ch_tot,
 					tabla_p->dai[j].rate);
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+			ret = es325_remote_cfg_slim_rx(tabla_dai[j].id);
+			pr_info("%s: ret=%d, ch_num=%d, rate=%d \n", __func__, ret, *(tabla_p->dai[j].ch_num), tabla_p->dai[j].rate);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -4990,6 +5187,11 @@ static int tabla_codec_enable_slimrx(struct snd_soc_dapm_widget *w,
 			}
 		}
 		if (!tabla_p->dai[j].ch_act) {
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+			ret = es325_remote_close_slim_rx(tabla_dai[j].id);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 			ret = wcd9xxx_close_slim_sch_rx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -5067,6 +5269,11 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot,
 						tabla_p->dai[j].rate);
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+			ret = es325_remote_cfg_slim_tx(tabla_dai[j].id);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 		}
 		break;
 	case SND_SOC_DAPM_POST_PMD:
@@ -5082,6 +5289,11 @@ static int tabla_codec_enable_slimtx(struct snd_soc_dapm_widget *w,
 			}
 		}
 		if (!tabla_p->dai[j].ch_act) {
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+			ret = es325_remote_close_slim_tx(tabla_dai[j].id);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 			ret = wcd9xxx_close_slim_sch_tx(tabla,
 						tabla_p->dai[j].ch_num,
 						tabla_p->dai[j].ch_tot);
@@ -5235,6 +5447,12 @@ static const struct snd_soc_dapm_widget tabla_dapm_widgets[] = {
 		&rx2_mix1_inp1_mux),
 	SND_SOC_DAPM_MUX("RX2 MIX1 INP2", SND_SOC_NOPM, 0, 0,
 		&rx2_mix1_inp2_mux),
+#ifdef CONFIG_USE_REMOVE_AUX_NOISE		
+	SND_SOC_DAPM_MUX("RX2 MIX1 INP3", SND_SOC_NOPM, 0, 0,
+		&rx2_mix1_inp3_mux),
+	SND_SOC_DAPM_MUX("RX1 MIX1 INP3", SND_SOC_NOPM, 0, 0,
+		&rx1_mix1_inp3_mux),
+#endif/*CONFIG_USE_REMOVE_AUX_NOISE*/
 	SND_SOC_DAPM_MUX("RX3 MIX1 INP1", SND_SOC_NOPM, 0, 0,
 		&rx3_mix1_inp1_mux),
 	SND_SOC_DAPM_MUX("RX3 MIX1 INP2", SND_SOC_NOPM, 0, 0,
@@ -8290,7 +8508,11 @@ static const struct tabla_reg_mask_val tabla_1_1_reg_defaults[] = {
 	TABLA_REG_VAL(TABLA_A_CDC_RX7_B6_CTL, 0x80),
 
 	/* Tabla 1.1 CLASSG Changes */
-	TABLA_REG_VAL(TABLA_A_CDC_CLSG_FREQ_THRESH_B3_CTL, 0x1B),
+	TABLA_REG_VAL(TABLA_A_CDC_CLSG_FREQ_THRESH_B1_CTL, 0x02),
+	TABLA_REG_VAL(TABLA_A_CDC_CLSG_FREQ_THRESH_B2_CTL, 0x05),
+	TABLA_REG_VAL(TABLA_A_CDC_CLSG_FREQ_THRESH_B3_CTL, 0x06),
+	TABLA_REG_VAL(TABLA_A_CDC_CLSG_FREQ_THRESH_B4_CTL, 0x0C),
+	TABLA_REG_VAL(TABLA_A_CDC_CLSG_GAIN_THRESH_CTL, 0x0D),
 };
 
 static const struct tabla_reg_mask_val tabla_2_0_reg_defaults[] = {
@@ -8464,6 +8686,123 @@ static void tabla_update_reg_address(struct tabla_priv *priv)
 		reg_addr->micb_4_ctl = TABLA_2_A_MICB_4_CTL;
 	}
 }
+
+#ifdef CONFIG_SWITCH_MAX1462X
+
+/*                                                  
+                   
+ */ 
+static bool max1462x_mic_bias = false;
+
+void set_headset_mic_bias_l10(int on)
+{
+	int rc = -EINVAL;
+       int voltage_l10;
+	static struct regulator *vreg_l10;
+
+	if(!max1462x_mic_bias) {
+		vreg_l10 = regulator_get(NULL, "8921_l10");   //HEADSET_MIC_BIAS, VREG_L10
+		if (IS_ERR(vreg_l10)) {
+			pr_err("%s: regulator get of vreg_l10 failed (%ld)\n", __func__, PTR_ERR(vreg_l10)); 
+		}
+              voltage_l10 = regulator_get_voltage(vreg_l10);
+		rc = regulator_set_voltage(vreg_l10, voltage_l10, voltage_l10);
+		if (rc) {
+			pr_err("%d: regulator set of vreg_l10 failed \n", rc); 
+		}
+
+		max1462x_mic_bias = true;
+	}
+
+	if(on)
+	{
+		pr_err("MIC_BIAS Enabled");
+		regulator_enable(vreg_l10);
+	}
+	else
+	{
+		pr_err("MIC_BIAS Disabled");
+		regulator_disable(vreg_l10);
+	}
+ 
+}
+
+/*                                                 */
+
+#endif /* CONFIG_SWITCH_MAX1462X */
+
+#ifdef CONFIG_SWITCH_FSA8008
+/*
+                               
+                                                             
+                                   
+*/
+
+void tabla_codec_micbias2_ctl(int enable)
+{
+	struct snd_soc_codec *codec = NULL;
+
+	if (snd_codec == NULL) {
+		pr_err("%s, Failed to init tabla codec\n", __func__);
+		return;
+	}
+
+	codec = snd_codec;
+	pr_info("%s, enable : %d\n", __func__ , enable);
+
+	if(enable){
+        snd_soc_dapm_force_enable_pin(&codec->dapm, "MIC BIAS2 External");
+        snd_soc_dapm_sync(&codec->dapm);
+	} else {
+		snd_soc_dapm_disable_pin(&codec->dapm, "MIC BIAS2 External");
+        snd_soc_dapm_sync(&codec->dapm);
+	}
+}
+
+//                                  
+static bool fsa8008_mic_bias = false;
+
+void set_headset_mic_bias_l29(int on)
+{
+	int rc = -EINVAL;
+	static struct regulator *vreg_l29;
+
+	if(!fsa8008_mic_bias) {
+		vreg_l29 = regulator_get(NULL, "8921_l29");   //HEADSET_MIC_BIAS, VREG_L29: 2.0
+		if (IS_ERR(vreg_l29)) {
+			pr_err("%s: regulator get of vreg_l29 failed (%ld)\n", __func__, PTR_ERR(vreg_l29)); 
+		}
+
+//                                                                          
+#if 1//defined(CONFIG_MACH_APQ8064_J1SK)|| defined(CONFIG_MACH_APQ8064_J1KT)|| defined(CONFIG_MACH_APQ8064_J1U)|| defined(CONFIG_MACH_APQ8064_J1A)
+	//||defined(CONFIG_MACH_APQ8064_J1R) || defined(CONFIG_MACH_APQ8064_J1B) || defined(CONFIG_MACH_APQ8064_J1TL) || defined(CONFIG_MACH_APQ8064_J1SP)
+		rc = regulator_set_voltage(vreg_l29, 2700000, 2700000);
+#else
+		rc = regulator_set_voltage(vreg_l29, 2000000, 2000000);
+#endif
+		
+		if (rc) {
+			pr_err("%d: regulator set of vreg_l29 failed \n", rc); 
+		}
+
+		fsa8008_mic_bias = true;
+	}
+
+	if(on)
+	{
+		pr_err("MIC_BIAS Enabled");
+		regulator_enable(vreg_l29);
+	}
+	else
+	{
+		pr_err("MIC_BIAS Disabled");
+		regulator_disable(vreg_l29);
+	}
+ 
+}
+
+EXPORT_SYMBOL_GPL(tabla_codec_micbias2_ctl);
+#endif /* CONFIG_SWITCH_FSA8008 */
 
 #ifdef CONFIG_DEBUG_FS
 static int codec_debug_open(struct inode *inode, struct file *file)
@@ -8671,6 +9010,12 @@ static int tabla_codec_probe(struct snd_soc_codec *codec)
 
 //	snd_soc_dapm_new_controls(dapm, tabla_dapm_widgets,
 //				  ARRAY_SIZE(tabla_dapm_widgets));
+
+//                                                          
+#if defined(CONFIG_SND_SOC_ES325_SLIM)
+	es325_remote_add_codec_controls(codec);
+#endif /* CONFIG_SND_SOC_ES325_SLIM */
+//                                                          
 
 	snd_soc_dapm_new_controls(dapm, tabla_dapm_aif_in_widgets,
 				  ARRAY_SIZE(tabla_dapm_aif_in_widgets));

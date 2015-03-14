@@ -316,7 +316,6 @@ static inline __u32 ipv6_iface_scope_id(const struct in6_addr *addr, int iface)
 {
 	return __ipv6_addr_needs_scope_id(__ipv6_addr_type(addr)) ? iface : 0;
 }
-
 static inline int ipv6_addr_cmp(const struct in6_addr *a1, const struct in6_addr *a2)
 {
 	return memcmp(a1, a2, sizeof(struct in6_addr));

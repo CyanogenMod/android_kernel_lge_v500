@@ -16,12 +16,16 @@
 #ifndef __PM8XXX_CRADLE_H__
 #define __PM8XXX_CRADLE_H__
 
-#define PM8XXX_CRADLE_DEV_NAME "bu52014hfv"
+//#define PM8XXX_CRADLE_DEV_NAME  "bu52014hfv"
+#define HALL_IC_DEV_NAME "bu52031nvx"
 
 #define CRADLE_NO_DEV 		0
 #define CRADLE_DESKDOCK 	1
 #define CRADLE_CARKIT 		2
-#define CRADLE_POUCH 		256
+
+#define HALL_IC_GPIO		7
+#define CRADLE_SMARTCOVER	1
+#define CRADLE_SMARTCOVER_NO_DEV	0
 
 struct pm8xxx_cradle_platform_data {
 	int carkit_detect_pin;

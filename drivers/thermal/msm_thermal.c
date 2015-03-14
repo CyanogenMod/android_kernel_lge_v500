@@ -24,6 +24,20 @@
 #include <linux/platform_device.h>
 #include <linux/of.h>
 #include <mach/cpufreq.h>
+#ifdef CONFIG_LGE_PM
+#include <mach/board_lge.h>
+#endif
+
+#ifdef CONFIG_LGE_PM
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+	|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+#define DEF_ALLOWED_MAX_FREQ 	918000
+#define DEF_ALLOWED_MAX_FREQ_1 1026000
+#define DEF_ALLOWED_MAX_FREQ_2 1242000
+#else
+#define DEF_ALLOWED_MAX_FREQ 1026000
+#endif
+#endif
 
 static int enabled;
 static struct msm_thermal_data msm_thermal_info;
@@ -37,6 +51,11 @@ static int limit_idx;
 static int limit_idx_low;
 static int limit_idx_high;
 static struct cpufreq_frequency_table *table;
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+	|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+static struct timer_list limit_timer;
+extern int limit_cpufreq;
+#endif
 
 static int msm_thermal_get_freq_table(void)
 {
@@ -166,9 +185,33 @@ static void __cpuinit check_temp(struct work_struct *work)
 			limit_init = 1;
 	}
 
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+		|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+	if (lge_get_factory_boot())
+		return;
 	do_core_control(temp);
 
-	if (temp >= msm_thermal_info.limit_temp_degC) {
+	if (temp >= msm_thermal_info.limit_temp_degC
+		|| temp <= msm_thermal_info.limit_temp_degC_low) {
+		max_freq = DEF_ALLOWED_MAX_FREQ_1;
+		pr_info("msm_thermal: tsens_temp %ld\n", temp); 
+	} else if ( (temp < msm_thermal_info.limit_temp_degC -
+		 msm_thermal_info.temp_hysteresis_degC)
+		 && (temp > msm_thermal_info.limit_temp_degC_low)) {
+		max_freq = DEF_ALLOWED_MAX_FREQ_2;
+	} else {
+		if(limited_max_freq == MSM_CPUFREQ_NO_LIMIT)
+			max_freq = DEF_ALLOWED_MAX_FREQ_2;
+	}
+#else
+	do_core_control(temp);
+
+	if (temp >= msm_thermal_info.limit_temp_degC
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//                                   
+		|| temp <= msm_thermal_info.limit_temp_degC_low
+#endif
+		) {
 		if (limit_idx == limit_idx_low)
 			goto reschedule;
 
@@ -176,8 +219,18 @@ static void __cpuinit check_temp(struct work_struct *work)
 		if (limit_idx < limit_idx_low)
 			limit_idx = limit_idx_low;
 		max_freq = table[limit_idx].frequency;
-	} else if (temp < msm_thermal_info.limit_temp_degC -
-		 msm_thermal_info.temp_hysteresis_degC) {
+#ifdef CONFIG_LGE_PM
+		if(max_freq >= 1026000)
+			max_freq = DEF_ALLOWED_MAX_FREQ;
+		pr_info("msm_thermal: tsens_temp %ld\n", temp); 
+#endif
+	} else if ( (temp < msm_thermal_info.limit_temp_degC -
+		 msm_thermal_info.temp_hysteresis_degC)
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//                                   
+		 && (temp > msm_thermal_info.limit_temp_degC_low)
+#endif
+		) {
 		if (limit_idx == limit_idx_high)
 			goto reschedule;
 
@@ -188,6 +241,7 @@ static void __cpuinit check_temp(struct work_struct *work)
 		} else
 			max_freq = table[limit_idx].frequency;
 	}
+#endif
 	if (max_freq == limited_max_freq)
 		goto reschedule;
 
@@ -206,6 +260,16 @@ reschedule:
 				msecs_to_jiffies(msm_thermal_info.poll_ms));
 }
 
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+	|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+static void msm_thermal_limit_holding_timer(unsigned long data)
+{
+	int cpu = 0;
+
+	pr_info("msm_thermal: Reset to limit cpu%d cur freq\n", cpu);
+	limit_cpufreq = 0;
+}
+#endif
 static int __cpuinit msm_thermal_cpu_callback(struct notifier_block *nfb,
 		unsigned long action, void *hcpu)
 {
@@ -243,8 +307,40 @@ static void __cpuinit disable_msm_thermal(void)
 	cancel_delayed_work(&check_temp_work);
 	flush_scheduled_work();
 
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
+	|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+	if (lge_get_factory_boot())
+		return;
+
+	if (limited_max_freq == DEF_ALLOWED_MAX_FREQ_1) {
+		pr_info("msm_thermal: Continue to limit cpu%d max freq to %d\n", 
+			cpu, DEF_ALLOWED_MAX_FREQ_1);
+		return;
+	}
+
+	if (limited_max_freq == DEF_ALLOWED_MAX_FREQ_2) {
+		pr_info("msm_thermal: Continue to limit cpu%d cur freq to %d\n", 
+			cpu, DEF_ALLOWED_MAX_FREQ_2);
+		limit_cpufreq = 1;
+		if( timer_pending(&limit_timer))
+			del_timer(&limit_timer);
+		init_timer(&limit_timer);
+		limit_timer.function = msm_thermal_limit_holding_timer;
+		limit_timer.expires = jiffies + msecs_to_jiffies(6000);
+		add_timer(&limit_timer);
+	}
+#endif
+
 	if (limited_max_freq == MSM_CPUFREQ_NO_LIMIT)
 		return;
+
+#if defined(CONFIG_MACH_APQ8064_GVAR_CMCC)
+//                                   
+	if (limited_max_freq == DEF_ALLOWED_MAX_FREQ) {
+		pr_info("msm_thermal: continue  max_freq = %d..\n", DEF_ALLOWED_MAX_FREQ);
+		return;
+	}
+#endif
 
 	for_each_possible_cpu(cpu) {
 		update_cpu_max_freq(cpu, MSM_CPUFREQ_NO_LIMIT);

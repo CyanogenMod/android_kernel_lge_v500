@@ -70,8 +70,22 @@
 #include <mach/usb_trace.h>
 #include "ci13xxx_udc.h"
 
+#ifdef CONFIG_USB_G_LGE_ANDROID //build error fix 0820
+#include <mach/board_lge.h>
+#endif
+
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+#include <mach/board_lge.h>
+
+#define PORTSC_PFSC BIT(24)
+#endif
+
 /* Turns on streaming. overrides CI13XXX_DISABLE_STREAMING */
+#if CONFIG_USB_G_LGE_ANDROID
+static unsigned int streaming = 1;
+#else
 static unsigned int streaming;
+#endif
 module_param(streaming, uint, S_IRUGO | S_IWUSR);
 
 /******************************************************************************
@@ -338,6 +352,9 @@ static int hw_device_init(void __iomem *base)
  */
 static int hw_device_reset(struct ci13xxx *udc)
 {
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+    enum lge_boot_mode_type boot_mode;
+#endif
 	int delay_count = 25; /* 250 usec */
 
 	/* should flush & stop before reset */
@@ -375,6 +392,22 @@ static int hw_device_reset(struct ci13xxx *udc)
 		pr_err("lpm = %i", hw_bank.lpm);
 		return -ENODEV;
 	}
+
+#ifdef CONFIG_USB_G_LGE_ANDROID_PFSC
+    /*                         
+      
+                                        
+                                  
+                                        
+                                  
+     */
+    boot_mode = lge_get_boot_mode();
+    if ((boot_mode == LGE_BOOT_MODE_FACTORY)  ||
+        (boot_mode == LGE_BOOT_MODE_PIFBOOT))
+    {
+        hw_cwrite(CAP_PORTSC, PORTSC_PFSC, PORTSC_PFSC);
+    }
+#endif
 
 	return 0;
 }
@@ -2315,9 +2348,15 @@ __acquires(udc->lock)
 
 	spin_unlock(udc->lock);
 
+#ifdef CONFIG_LGE_PM
 	/*stop charging upon reset */
 	if (udc->transceiver)
 		usb_phy_set_power(udc->transceiver, 100);
+#else
+	/*stop charging upon reset */
+	if (udc->transceiver)
+		usb_phy_set_power(udc->transceiver, 100);
+#endif
 
 	retval = _gadget_stop_activity(&udc->gadget);
 	if (retval)
@@ -2757,6 +2796,7 @@ __acquires(udc->lock)
 					udc->remote_wakeup = 1;
 					err = isr_setup_status_phase(udc);
 					break;
+#ifdef CONFIG_USB_OTG
 				case USB_DEVICE_B_HNP_ENABLE:
 					udc->gadget.b_hnp_enable = 1;
 					err = isr_setup_status_phase(udc);
@@ -2767,6 +2807,17 @@ __acquires(udc->lock)
 					break;
 				case USB_DEVICE_A_ALT_HNP_SUPPORT:
 					break;
+#else	// Not CONFIG_USB_OTG
+				case USB_DEVICE_B_HNP_ENABLE:
+					err = 0;
+					break;
+				case USB_DEVICE_A_HNP_SUPPORT:
+					err = 0;
+					break;
+				case USB_DEVICE_A_ALT_HNP_SUPPORT:
+					err = 0;
+					break;
+#endif	//CONFIG_USB_OTG
 				case USB_DEVICE_TEST_MODE:
 					tmode = le16_to_cpu(req.wIndex) >> 8;
 					switch (tmode) {
@@ -2779,6 +2830,7 @@ __acquires(udc->lock)
 						err = isr_setup_status_phase(
 								udc);
 						break;
+#ifdef CONFIG_USB_OTG
 					case TEST_OTG_SRP_REQD:
 						udc->gadget.otg_srp_reqd = 1;
 						err = isr_setup_status_phase(
@@ -2789,6 +2841,14 @@ __acquires(udc->lock)
 						err = isr_setup_status_phase(
 								udc);
 						break;
+#else
+					case TEST_OTG_SRP_REQD:
+						err = 0;
+						break;
+					case TEST_OTG_HNP_REQD:
+						err = 0;
+						break;
+#endif
 					default:
 						break;
 					}

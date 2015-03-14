@@ -112,6 +112,11 @@ EXPORT_SYMBOL(system_state);
  */
 #define MAX_INIT_ARGS CONFIG_INIT_ENV_ARG_LIMIT
 #define MAX_INIT_ENVS CONFIG_INIT_ENV_ARG_LIMIT
+#if defined(CONFIG_LGE_PM)
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+static void smpl_count(void);
+#endif
+#endif
 
 extern void time_init(void);
 /* Default late time init is NULL. archs can override this later. */
@@ -385,6 +390,103 @@ static noinline void __init_refok rest_init(void)
 	/* Call into cpu_idle with preempt disabled */
 	cpu_idle();
 }
+#if defined(CONFIG_LGE_PM)
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+#define PWR_ON_EVENT_KEYPAD			0x1
+#define PWR_ON_EVENT_RTC			0x2
+#define PWR_ON_EVENT_CABLE			0x4
+#define PWR_ON_EVENT_SMPL			0x8
+#define PWR_ON_EVENT_WDOG			0x10
+#define PWR_ON_EVENT_USB_CHG		0x20
+#define PWR_ON_EVENT_WALL_CHG		0x40
+#define PWR_ON_EVENT_HARD_RESET		0x100
+
+extern struct file *fget(unsigned int fd);
+extern void fput(struct file *);
+extern uint16_t power_on_status_info_get(void);
+
+static void write_file(char *filename, char* data)
+{
+	int fd = -1;
+	loff_t pos = 0;
+	struct file* file;
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	fd = sys_open((const char __user *)filename, O_WRONLY | O_CREAT, 0644);
+	printk("[SMPL_CNT] ===> write() : fd is %d\n", fd);
+	if(fd >=0)
+	{
+		file = fget(fd);
+		if(file)
+		{
+			vfs_write(file, data, strlen(data), &pos);
+			fput(file);
+		}
+		sys_close(fd);
+	}
+	else
+	{
+		printk("[SMPL_CNT] === > write : sys_open error!!!!\n");
+	}
+	set_fs(old_fs);
+}
+
+
+static void smpl_count(void)
+{
+	char* file_name = "/smpl_boot";
+	uint16_t boot_cause = 0;
+
+	boot_cause = power_on_status_info_get();
+	printk("[BOOT_CAUSE] 0x%X \n", boot_cause);
+
+	if(boot_cause==PWR_ON_EVENT_SMPL)
+	{
+		printk("[SMPL_CNT] ===> is smpl boot\n");
+		write_file(file_name, "1");
+	}
+	else
+	{
+		write_file(file_name, "0");
+		printk("[SMPL_CNT] ===> not smpl boot!!!!!\n");
+	}
+}
+
+#ifdef CONFIG_MACH_APQ8064_ALTEV
+void write_high_temp_power_off(void)
+{
+	char* file_name = "/data/is_high_temp_pwr_off";
+	printk("======= write_high_temp_power_off =======\n");
+	write_file(file_name, "1");
+}
+EXPORT_SYMBOL_GPL(write_high_temp_power_off);
+
+int read_high_temp_power_off(char *filename)
+{
+	struct file *filp;
+	char read_val;
+
+	mm_segment_t old_fs = get_fs();
+	set_fs(KERNEL_DS);
+
+	filp = filp_open(filename, O_RDWR, S_IRUSR|S_IWUSR);
+	if(IS_ERR(filp)){
+		pr_err("open error : %ld\n", IS_ERR(filp));
+		return -1;
+	}
+	filp->f_pos = 0;
+
+	vfs_read(filp, &read_val, 1, &filp->f_pos);
+	filp_close(filp, NULL);
+	set_fs(old_fs);
+	return read_val;
+}
+EXPORT_SYMBOL_GPL(read_high_temp_power_off);
+#endif
+
+#endif
+#endif
 
 /* Check for early params. */
 static int __init do_early_param(char *param, char *val)
@@ -888,6 +990,11 @@ static int __init kernel_init(void * unused)
 	 * we're essentially up and running. Get rid of the
 	 * initmem segments and start the user-mode stuff..
 	 */
+#if defined(CONFIG_LGE_PM)
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+	smpl_count();
+#endif
+#endif
 
 	init_post();
 	return 0;

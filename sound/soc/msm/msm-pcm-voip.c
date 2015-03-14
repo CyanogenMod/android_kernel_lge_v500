@@ -255,8 +255,13 @@ static int msm_voip_fens_get(struct snd_kcontrol *kcontrol,
 static struct snd_kcontrol_new msm_voip_controls[] = {
 	SOC_SINGLE_EXT("Voip Tx Mute", SND_SOC_NOPM, 0, 1, 0,
 				msm_voip_mute_get, msm_voip_mute_put),
+#if defined(CONFIG_MACH_APQ8064_J1SK) || defined(CONFIG_MACH_APQ8064_J1KT) || defined(CONFIG_MACH_APQ8064_J1U) || defined(CONFIG_MACH_APQ8064_GKSK) || defined(CONFIG_MACH_APQ8064_GKKT) || defined(CONFIG_MACH_APQ8064_GKU)
+	SOC_SINGLE_EXT("Voip Rx Volume", SND_SOC_NOPM, 0, 9, 0,
+				msm_voip_volume_get, msm_voip_volume_put),
+#else
 	SOC_SINGLE_EXT("Voip Rx Volume", SND_SOC_NOPM, 0, 5, 0,
 				msm_voip_volume_get, msm_voip_volume_put),
+#endif
 	SOC_SINGLE_MULTI_EXT("Voip Mode Rate Config", SND_SOC_NOPM, 0, 23850,
 				0, 2, msm_voip_mode_rate_config_get,
 				msm_voip_mode_rate_config_put),

@@ -1763,8 +1763,13 @@ static void *msm_bus_bimc_allocate_bimc_data(struct platform_device *pdev,
 		}
 	}
 
+	if (fab_pdata->virt) {
+		MSM_BUS_DBG("Don't get memory regions for virtual fabric\n");
+		goto skip_mem;
+	}
+
 	bimc_mem = platform_get_resource(pdev, IORESOURCE_MEM, 0);
-	if (!bimc_mem && !fab_pdata->virt) {
+	if (!bimc_mem) {
 		MSM_BUS_ERR("Cannot get BIMC Base address\n");
 		kfree(binfo);
 		return NULL;
@@ -1786,6 +1791,7 @@ static void *msm_bus_bimc_allocate_bimc_data(struct platform_device *pdev,
 		return NULL;
 	}
 
+skip_mem:
 	fab_pdata->hw_data = (void *)binfo;
 	return (void *)binfo;
 }
@@ -1808,7 +1814,7 @@ static void msm_bus_bimc_update_bw(struct msm_bus_inode_info *hop,
 	struct msm_bus_bimc_info *binfo;
 	struct msm_bus_bimc_qos_bw qbw;
 	int i;
-	long int bw;
+	int64_t bw;
 	int ports = info->node_info->num_mports;
 	struct msm_bus_bimc_commit *sel_cd =
 		(struct msm_bus_bimc_commit *)sel_cdata;
@@ -1844,11 +1850,11 @@ static void msm_bus_bimc_update_bw(struct msm_bus_inode_info *hop,
 			qbw.bw = sel_cd->mas[info->node_info->masterp[i]].bw;
 			qbw.ws = info->node_info->ws;
 			/* Threshold low = 90% of bw */
-			qbw.thl = (90 * bw) / 100;
+			qbw.thl = div_s64((90 * bw), 100);
 			/* Threshold medium = bw */
 			qbw.thm = bw;
 			/* Threshold high = 10% more than bw */
-			qbw.thh = (110 * bw) / 100;
+			qbw.thh = div_s64((110 * bw), 100);
 			/* Check if info is a shared master.
 			 * If it is, mark it dirty
 			 * If it isn't, then set QOS Bandwidth
@@ -1955,7 +1961,8 @@ static void msm_bus_bimc_node_init(void *hw_data,
 	struct msm_bus_bimc_info *binfo =
 		(struct msm_bus_bimc_info *)hw_data;
 
-	if (!IS_SLAVE(info->node_info->priv_id))
+	if (!IS_SLAVE(info->node_info->priv_id) &&
+		(info->node_info->hw_sel != MSM_BUS_RPM))
 		msm_bus_bimc_mas_init(binfo, info);
 }
 

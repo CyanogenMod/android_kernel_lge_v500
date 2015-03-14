@@ -1768,8 +1768,13 @@ struct platform_device msm8960_device_dmov = {
 		.platform_data = &msm_dmov_pdata,
 	},
 };
+#if defined (CONFIG_MSM_MODEM_8960)
 #define MSM_UIO_RMTFS_BASE	0x8FB00000
 #define MSM_UIO_RMTFS_END	(MSM_UIO_RMTFS_BASE + 0x300000)
+#else
+#define MSM_UIO_RMTFS_BASE	0x8FF00000  //APQ8064_only
+#define MSM_UIO_RMTFS_END	(MSM_UIO_RMTFS_BASE + 0x40000)
+#endif
 
 static struct resource msm_device_uio_rmtfs_rsc[] = {
 	{

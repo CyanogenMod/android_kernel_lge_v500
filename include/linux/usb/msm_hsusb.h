@@ -179,6 +179,8 @@ enum usb_vdd_value {
  *              for msm_otg driver.
  * @phy_init_seq: PHY configuration sequence. val, reg pairs
  *              terminated by -1.
+ * @phy_init_seq: PHY configuration sequence for host mode. val, reg pairs
+ *              terminated by -1.
  * @vbus_power: VBUS power on/off routine.It should return result
  *		as success(zero value) or failure(non-zero value).
  * @power_budget: VBUS power budget in mA (0 will be treated as 500mA).
@@ -202,6 +204,7 @@ enum usb_vdd_value {
  */
 struct msm_otg_platform_data {
 	int *phy_init_seq;
+	int *phy_init_host_seq;
 	int (*vbus_power)(bool on);
 	unsigned power_budget;
 	enum usb_mode_type mode;
@@ -228,11 +231,7 @@ struct msm_otg_platform_data {
  * This option is set for embedded hosts or OTG devices in which leakage
  * currents are very minimal.
  */
-#ifdef CONFIG_USB_OTG
-#define TA_WAIT_BCON	30000	/* (1100 - 30000) */
-#else
 #define TA_WAIT_BCON	-1
-#endif
 
 #define TA_AIDL_BDIS	500	/* (200 - ) */
 #define TA_BIDL_ADIS	155	/* (155 - 200) */
@@ -329,6 +328,10 @@ struct msm_otg {
 	struct delayed_work chg_work;
 	struct delayed_work pmic_id_status_work;
 	struct delayed_work check_ta_work;
+#if defined(CONFIG_USB_G_LGE_ANDROID) && defined(CONFIG_USB_OTG)
+    struct delayed_work pmic_id_work;
+    struct delayed_work usb_id_sel_work;
+#endif
 	enum usb_chg_state chg_state;
 	enum usb_chg_type chg_type;
 	unsigned dcd_time;
@@ -343,7 +346,7 @@ struct msm_otg {
 	/*
 	 * Allowing PHY power collpase turns off the HSUSB 3.3v and 1.8v
 	 * analog regulators while going to low power mode.
-	 * Currently only 8960(28nm PHY) has the support to allowing PHY
+	 * Currently only 28nm PHY has the support to allowing PHY
 	 * power collapse since it doesn't have leakage currents while
 	 * turning off the power rails.
 	 */
@@ -357,12 +360,18 @@ struct msm_otg {
 	   * Allow putting the core in Low Power mode, when
 	   * USB bus is suspended but cable is connected.
 	   */
-#define ALLOW_LPM_ON_DEV_SUSPEND	    BIT(2)
+#define ALLOW_LPM_ON_DEV_SUSPEND	BIT(2)
+	/*
+	 * Allowing PHY regulators LPM puts the HSUSB 3.3v and 1.8v
+	 * analog regulators into LPM while going to USB low power mode.
+	 */
+#define ALLOW_PHY_REGULATORS_LPM	BIT(3)
 	unsigned long lpm_flags;
 #define PHY_PWR_COLLAPSED		BIT(0)
 #define PHY_RETENTIONED			BIT(1)
 #define XO_SHUTDOWN			BIT(2)
 #define CLOCKS_DOWN			BIT(3)
+#define PHY_REGULATORS_LPM	BIT(4)
 	int reset_counter;
 	unsigned long b_last_se0_sess;
 	unsigned long tmouts;

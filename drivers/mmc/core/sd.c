@@ -43,7 +43,11 @@ static const unsigned int tacc_mant[] = {
 	0,	10,	12,	13,	15,	20,	25,	30,
 	35,	40,	45,	50,	55,	60,	70,	80,
 };
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
 
+unsigned int clock_max;
+char clock_flag=0;
+#endif
 #define UNSTUFF_BITS(resp,start,size)					\
 	({								\
 		const int __size = size;				\
@@ -244,11 +248,36 @@ static int mmc_read_ssr(struct mmc_card *card)
 	 * bitfield positions accordingly.
 	 */
 	au = UNSTUFF_BITS(ssr, 428 - 384, 4);
-	if (au > 0 || au <= 9) {
+	if (au > 0 && au <= 9) {
 		card->ssr.au = 1 << (au + 4);
 		es = UNSTUFF_BITS(ssr, 408 - 384, 16);
 		et = UNSTUFF_BITS(ssr, 402 - 384, 6);
 		eo = UNSTUFF_BITS(ssr, 400 - 384, 2);
+
+		#ifdef CONFIG_MACH_LGE
+		/*           
+                                
+                                                      
+                                                
+   */
+		{
+			unsigned int speed_class_ssr = 0;
+
+			speed_class_ssr = UNSTUFF_BITS(ssr, 440 - 384, 8);
+			if(speed_class_ssr < 5)
+			{
+				printk(KERN_INFO "[LGE][MMC][%-18s( )] mmc_hostname:%s, %u ==> SPEED_CLASS %s%s%s%s%s\n", __func__, mmc_hostname(card->host), speed_class_ssr,
+				((speed_class_ssr == 4) ? "10" : ""),
+				((speed_class_ssr == 3) ? "6" : ""),
+				((speed_class_ssr == 2) ? "4" : ""),
+				((speed_class_ssr == 1) ? "2" : ""),
+				((speed_class_ssr == 0) ? "0" : ""));
+			}
+			else
+				printk(KERN_INFO "[LGE][MMC][%-18s( )] mmc_hostname:%s, Unknown SPEED_CLASS\n", __func__, mmc_hostname(card->host));
+		}
+		#endif
+
 		if (es && et) {
 			card->ssr.erase_timeout = (et * 1000) / es;
 			card->ssr.erase_offset = eo * 1000;
@@ -545,7 +574,14 @@ static int sd_set_bus_speed_mode(struct mmc_card *card, u8 *status)
 			mmc_hostname(card->host));
 	else {
 		mmc_set_timing(card->host, timing);
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+		 if(clock_flag)
+		 	mmc_set_clock(card->host, clock_max);
+		 else
+			mmc_set_clock(card->host, card->sw_caps.uhs_max_dtr);
+#else
 		mmc_set_clock(card->host, card->sw_caps.uhs_max_dtr);
+#endif
 	}
 
 	return 0;
@@ -1087,7 +1123,14 @@ static int mmc_sd_init_card(struct mmc_host *host, u32 ocr,
 		/*
 		 * Set bus speed.
 		 */
-		mmc_set_clock(host, mmc_sd_get_max_clock(card));
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+		 if(clock_flag)
+		 	mmc_set_clock(host, clock_max);
+		 else
+			mmc_set_clock(host, mmc_sd_get_max_clock(card));
+#else
+	mmc_set_clock(host, mmc_sd_get_max_clock(card));
+#endif
 
 		/*
 		 * Switch to wider bus (if supported).
@@ -1165,8 +1208,29 @@ static void mmc_sd_detect(struct mmc_host *host)
 		break;
 	}
 	if (!retries) {
+#if defined(CONFIG_LGE_REINIT_SDCARD_FOR_DETECT_FAIL)
+	// Try re-init the card when card detection is failed.
+        pr_warning("%s(%s): Unable to re-detect card (%d)\n", __func__, mmc_hostname(host), err);
+        mmc_power_off(host);
+        usleep_range(5000, 5500);
+        mmc_power_up(host);
+        mmc_select_voltage(host, host->ocr);
+        err = mmc_sd_init_card(host, host->ocr, host->card);
+
+        if (err) {
+            printk(KERN_ERR "%s: Re-init card in mmc_sd_detect() rc = %d (retries = %d)\n",
+                    mmc_hostname(host), err, retries);
+            err = _mmc_detect_card_removed(host);
+        }
+        else {
+            pr_info("%s(%s): Re-init card success in mmc_sd_detect()\n", __func__,
+                    mmc_hostname(host));
+        }
+#else
 		printk(KERN_ERR "%s(%s): Unable to re-detect card (%d)\n",
 		       __func__, mmc_hostname(host), err);
+		err = _mmc_detect_card_removed(host);
+#endif
 	}
 #else
 	err = _mmc_detect_card_removed(host);

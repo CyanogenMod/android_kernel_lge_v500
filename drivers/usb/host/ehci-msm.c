@@ -1,6 +1,6 @@
 /* ehci-msm.c - HSUSB Host Controller Driver Implementation
  *
- * Copyright (c) 2008-2012, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2008-2013, The Linux Foundation. All rights reserved.
  *
  * Partly derived from ehci-fsl.c and ehci-hcd.c
  * Copyright (c) 2000-2004 by David Brownell
@@ -116,6 +116,8 @@ static int ehci_msm_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Unable to create HCD\n");
 		return  -ENOMEM;
 	}
+
+	hcd_to_bus(hcd)->skip_resume = true;
 
 	hcd->irq = platform_get_irq(pdev, 0);
 	if (hcd->irq < 0) {
@@ -245,15 +247,28 @@ static int ehci_msm_pm_suspend(struct device *dev)
 static int ehci_msm_pm_resume(struct device *dev)
 {
 	struct usb_hcd *hcd = dev_get_drvdata(dev);
+	int ret;
+	u32 portsc;
 
 	dev_dbg(dev, "ehci-msm PM resume\n");
 
 	if (!hcd->rh_registered)
 		return 0;
 
-	ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
+	/* Notify OTG to bring hw out of LPM before restoring wakeup flags */
+	ret = usb_phy_set_suspend(phy, 0);
+	if (ret)
+		return ret;
 
-	return usb_phy_set_suspend(phy, 0);
+	ehci_prepare_ports_for_controller_resume(hcd_to_ehci(hcd));
+	portsc = readl_relaxed(USB_PORTSC);
+	portsc &= ~PORT_RWC_BITS;
+	portsc |= PORT_RESUME;
+	writel_relaxed(portsc, USB_PORTSC);
+	/* Resume root-hub to handle USB event if any else initiate LPM again */
+	usb_hcd_resume_root_hub(hcd);
+
+	return ret;
 }
 #endif
 

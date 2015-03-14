@@ -425,7 +425,7 @@ static int pm8xxx_adjust_brightness(struct led_classdev *led_cdev,
 	struct	pm8xxx_led_data *led;
 	led = container_of(led_cdev, struct pm8xxx_led_data, cdev);
 
-	if (!led->adjust_brightness)
+	if (!led->adjust_brightness || !led->cdev.max_brightness)
 		return value;
 
 	if (led->adjust_brightness == led->cdev.max_brightness)
@@ -991,6 +991,93 @@ static int pm8xxx_led_pwm_configure(struct pm8xxx_led_data *led)
 	return rc;
 }
 
+static ssize_t pm8xxx_led_max_current_store(struct device *dev,
+				struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct pm8xxx_led_data *led;
+	ssize_t rc = -EINVAL;
+	char *after;
+	unsigned long state = simple_strtoul(buf, &after, 10);
+	size_t count = after - buf;
+
+	led = container_of(led_cdev, struct pm8xxx_led_data, cdev);
+
+	if (isspace(*after))
+		count++;
+
+	if (count == size) {
+		rc = count;
+		if(state > 20)
+			state = 20;
+		led->max_current = state;
+		led_lc_set(led, state/2);
+		printk(KERN_INFO "%s change max_current %lu\n", led_cdev->name, state/2);
+	}
+	return rc;
+}
+
+static DEVICE_ATTR(max_current, 0200, NULL, pm8xxx_led_max_current_store);
+
+static ssize_t pm8xxx_led_adjust_brightness_store(struct device *dev,
+				struct device_attribute *attr, const char *buf, size_t size)
+{
+	struct led_classdev *led_cdev = dev_get_drvdata(dev);
+	struct pm8xxx_led_data *led;
+
+	ssize_t rc = -EINVAL;
+	char *after;
+	unsigned long state = simple_strtoul(buf, &after, 10);
+	size_t count = after - buf;
+
+	led = container_of(led_cdev, struct pm8xxx_led_data, cdev);
+
+	if (isspace(*after))
+		count++;
+
+	if (count == size) {
+		rc = count;
+		if(state > 100)
+			state = 100;
+		led->adjust_brightness = state;
+		printk(KERN_INFO "%s change adjust_brightness %lu\n", led_cdev->name, state);
+	}
+	return rc;
+}
+
+static DEVICE_ATTR(adjust_brightness, 0200, NULL, pm8xxx_led_adjust_brightness_store);
+
+static ssize_t pm8xxx_led_status_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	const struct pm8xxx_led_platform_data *pdata = dev->platform_data;
+	struct pm8xxx_led_data *leds =  (struct pm8xxx_led_data *)dev_get_drvdata(dev);
+	int start_idx = 0, idx_len = 0;
+	int i, j, n = 0;
+
+	for (i = 0; i < pdata->num_configs; i++)
+	{
+		n += sprintf(&buf[n], "[%d] %s blink %d, adjust %d, max_current %d\n",
+				i, leds[i].cdev.name, leds[i].blink, leds[i].adjust_brightness, leds[i].max_current);
+		if (leds[i].pwm_duty_cycles != NULL && leds[i].pwm_duty_cycles->duty_pcts != NULL) {
+			start_idx = leds[i].pwm_duty_cycles->start_idx;
+			idx_len = leds[i].pwm_duty_cycles->num_duty_pcts;
+			for (j = 0; j < idx_len; j++)
+			{
+				n += sprintf(&buf[n], "%d ",
+						leds[i].pwm_duty_cycles->duty_pcts[j]);
+			}
+			n += sprintf(&buf[n], "\n");
+		}
+		else
+			n += sprintf(&buf[n], "not exist\n");
+
+	}
+	return n;
+}
+
+static DEVICE_ATTR(status, 0444, pm8xxx_led_status_show, NULL);
+
 static ssize_t pm8xxx_led_lock_update_show(struct device *dev,
 		                struct device_attribute *attr, char *buf)
 {
@@ -1277,6 +1364,11 @@ static int __devinit pm8xxx_led_probe(struct platform_device *pdev)
 			goto fail_id_check;
 		}
 
+		//rc = device_create_file(&pdev->dev, &dev_attr_max_current);
+		//rc = device_create_file(&pdev->dev, &dev_attr_adjust_brightness);
+		rc = device_create_file(led_dat->cdev.dev, &dev_attr_max_current);
+		rc = device_create_file(led_dat->cdev.dev, &dev_attr_adjust_brightness);
+
 		/* configure default state */
 		if (led_cfg->default_state)
 			led_dat->cdev.brightness = led_dat->cdev.max_brightness;
@@ -1321,6 +1413,8 @@ static int __devinit pm8xxx_led_probe(struct platform_device *pdev)
 		device_remove_file(&pdev->dev, &dev_attr_lock);
 		dev_err(&pdev->dev, "failed device_create_file(lock)\n");
 	}
+
+	rc = device_create_file(&pdev->dev, &dev_attr_status);
 
 	if (led->use_pwm) {
 		rc = device_create_file(&pdev->dev, &dev_attr_blink);

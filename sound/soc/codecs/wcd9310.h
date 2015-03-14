@@ -184,6 +184,24 @@ struct tabla_mbhc_config {
 extern int tabla_hs_detect(struct snd_soc_codec *codec,
 			   const struct tabla_mbhc_config *cfg);
 
+#ifdef CONFIG_SWITCH_MAX1462X
+extern void set_headset_mic_bias_l10(int on); //                                                           
+#endif
+#ifdef CONFIG_SWITCH_FSA8008
+/*
+                               
+                                                             
+                                   
+*/
+extern void set_headset_mic_bias_l29(int on); //                                                                                 
+extern void tabla_codec_micbias2_ctl(int enable); 
+#endif
+//                                                                                        
+#ifdef CONFIG_SWITCH_FSA8008
+void tabla_codec_micbias3_ctl(int enable);
+#endif
+//                                                                                      
+
 struct anc_header {
 	u32 reserved[3];
 	u32 num_anc_slots;

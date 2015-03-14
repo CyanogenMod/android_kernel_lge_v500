@@ -603,6 +603,15 @@ config PMIC8XXX_VIBRATOR
 	  on the PM8XXX chips. The vibrator is controlled using the
 	  timed output class.
 
+config LGE_PMIC8XXX_VIBRATOR_VOL
+    bool "Control the strength of Qualcomm Vibrator"
+    depends on PMIC8XXX_VIBRATOR && MACH_APQ8064_AWIFI
+    default y
+    help
+      This option enables the control of vibration strength for the vibrator
+      on the PM8XXX chips. The vibrator volume is controlled using the
+      timed output class.
+
 config ANDROID_VIBRATOR
 	bool "Android vibrator support"
 	depends on ANDROID_TIMED_OUTPUT
@@ -616,6 +625,19 @@ config TOUCHSENSE_VIBRATOR
 	help
 	  This option enables device driver support for Immersion Touchsense
 	  vibrator.
+
+config ANDROID_SW_IRRC
+	bool "Android irrc support"
+	default n
+	help
+	  This option enalbes device driver support for Android Vibrator driver.
+	  Some functions should be given by platform data for enable PWM, Motor IC, etc.
+
+config LGE_IRRC
+    tristate "LGE_IRRC"
+    default n
+    help
+       If you say yes here you get support for IrRC
 
 config PMIC8XXX_NFC
 	tristate "Qualcomm PM8XXX support for Near Field Communication"
@@ -680,6 +702,12 @@ config BU52031NVX_POUCHDETECT
 	depends on BU52031NVX
 	help
 	  depends on BU52031NVX
+
+# 120215 younghan.kim@lge.com Porting Immersion Vib[S]
+config TSPDRV
+    bool "tspdrv"
+        default n
+# 120215 younghan.kim@lge.com Porting Immersion Vib[E]
 
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"

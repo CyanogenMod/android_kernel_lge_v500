@@ -149,7 +149,118 @@ msmsdcc_print_status(struct msmsdcc_host *host, char *hdr, uint32_t status)
 	pr_debug("\n");
 }
 #endif
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+static int lge_asctodec(char *buff, int num)
+{
+    int i, j;
+    int val, tmp;
+    val=0;
+    for(i=0; i<num; i++)
+    {
+        tmp = 1;
+        for(j=0; j< (num-(i+1)); j++){
+            tmp = tmp*10;
+        }   
+        val += tmp*(buff[i]-48); 
+    }
+    pr_info("alex dec :%d\n", val);
+    return val;
+}
 
+static void record_crc_error(char *filename)
+{
+    struct file *filp;
+    char bufs[10], asc_num[10];
+    int ret;
+    int count;
+    int num_crc;
+    int tmp;
+    int i;
+
+    mm_segment_t old_fs = get_fs();
+    set_fs(KERNEL_DS);
+
+    filp = filp_open(filename, O_RDWR | O_CREAT, S_IRUSR|S_IWUSR);
+    if(IS_ERR(filp)){
+        pr_err("alex open error\n");
+        return;
+    }
+    count = 0;
+
+    do{
+        ret = vfs_read(filp, &bufs[count], 1, &filp->f_pos);
+        count++;
+    }while(ret!=0);
+
+    if(count == 1)
+    {
+        num_crc = 0;
+    }
+    else 
+    {
+    	count--;
+    	bufs[count]=0;
+    	num_crc = lge_asctodec(bufs, count);
+    }
+    num_crc = num_crc+1;
+    count = 1;
+    tmp = num_crc;
+    do{
+        tmp = tmp/10;
+        if(!(tmp<1))
+            count++;
+        else
+            break;
+    }while(1);  
+
+#if 0
+    pr_info("alex count : %d\n", count);
+
+    for(i=0; i<count; i++){
+        tmp = 1;
+        for(j=0; j< (count-(i+1)); j++){
+            tmp = tmp*10;
+        }
+       
+        pr_info(" alex asci tmp : %d, num_crc : %d\n", tmp, num_crc);
+        if(tmp == 1)
+            tmp_val = num_crc%10;
+        else
+            tmp_val = num_crc/tmp;
+
+        asc_num[i] = tmp_val+48;
+        pr_info(" alex asci tmp : %d, num_crc : %d, tmp_val : %d, asc_num : %c\n", tmp, num_crc, tmp_val, asc_num[i]);        
+        if((num_crc-tmp)>0)
+            num_crc = num_crc - tmp;
+    }
+    asc_num[count] = 0;
+#endif
+
+    for(i=0; i<count; i++){
+        tmp = num_crc%10;
+        asc_num[count-(i+1)] = tmp + '0';
+        num_crc = num_crc/10;
+    }
+    asc_num[count]=0;
+    pr_info("alex ascii val : %s", asc_num);
+    
+    filp->f_pos=0;
+
+    vfs_write(filp, asc_num, count, &filp->f_pos);
+    filp_close(filp, NULL);
+    set_fs(old_fs);
+    return;
+}
+
+static void record_crc_cmd_error(struct work_struct *work)
+{
+    record_crc_error("/persist/command_crc_error.txt");
+}
+static void record_crc_data_error(struct work_struct *work)
+{
+    record_crc_error("/persist/data_crc_error.txt");
+}
+#endif
 static void
 msmsdcc_start_command(struct msmsdcc_host *host, struct mmc_command *cmd,
 		      u32 c);
@@ -164,6 +275,9 @@ static bool msmsdcc_is_wait_for_auto_prog_done(struct msmsdcc_host *host,
 					       struct mmc_request *mrq);
 static bool msmsdcc_is_wait_for_prog_done(struct msmsdcc_host *host,
 					  struct mmc_request *mrq);
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+struct mmc_host *mmc_control_mmchost = NULL;
+#endif
 
 static inline unsigned short msmsdcc_get_nr_sg(struct msmsdcc_host *host)
 {
@@ -191,6 +305,16 @@ static void msmsdcc_pm_qos_update_latency(struct msmsdcc_host *host, int vote)
 	else
 		pm_qos_update_request(&host->pm_qos_req_dma,
 					PM_QOS_DEFAULT_VALUE);
+	/*                                                                      */
+	#if defined(CONFIG_BCMDHD) || defined (CONFIG_BCMDHD_MODULE)
+	{
+		extern void bcm_wifi_req_dma_qos(int vote);
+		if (host->mmc && host->mmc->card && mmc_card_sdio(host->mmc->card)) {
+			bcm_wifi_req_dma_qos(vote);
+		}
+	}
+	#endif
+	/*                                                                      */
 }
 
 #ifdef CONFIG_MMC_MSM_SPS_SUPPORT
@@ -1372,6 +1496,10 @@ msmsdcc_start_command(struct msmsdcc_host *host, struct mmc_command *cmd, u32 c)
 	msmsdcc_start_command_exec(host, cmd->arg, c);
 }
 
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+static DECLARE_WORK(lge_crc_cmd_workqueue, record_crc_cmd_error);
+static DECLARE_WORK(lge_crc_data_workqueue, record_crc_data_error);
+#endif
 static void
 msmsdcc_data_err(struct msmsdcc_host *host, struct mmc_data *data,
 		 unsigned int status)
@@ -1400,6 +1528,9 @@ msmsdcc_data_err(struct msmsdcc_host *host, struct mmc_data *data,
 					 + MCI_TEST_INPUT) & 0x2) ? 1 : 0);
 				msmsdcc_dump_sdcc_state(host);
 			}
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+            queue_work(system_nrt_wq, &lge_crc_data_workqueue);
+#endif
 		}
 
 		/*
@@ -1774,6 +1905,9 @@ static void msmsdcc_do_cmdirq(struct msmsdcc_host *host, uint32_t status)
 		if (host->tuning_needed)
 			host->tuning_done = false;
 		cmd->error = -EILSEQ;
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+        queue_work(system_nrt_wq, &lge_crc_cmd_workqueue);
+#endif
 	}
 
 	if (!cmd->error) {
@@ -1869,9 +2003,10 @@ msmsdcc_irq(int irq, void *dev_id)
 				 */
 				wake_lock(&host->sdio_wlock);
 			} else {
-				if (!mmc->card || !mmc_card_sdio(mmc->card)) {
-					WARN(1, "%s: SDCC core interrupt received for non-SDIO cards when SDCC clocks are off\n",
-					     mmc_hostname(mmc));
+				if (!mmc->card || (mmc->card &&
+				    !mmc_card_sdio(mmc->card))) {
+					pr_warning("%s: SDCC core interrupt received for non-SDIO cards when SDCC clocks are off\n",
+					   mmc_hostname(mmc));
 					ret = 1;
 					break;
 				}
@@ -1903,9 +2038,10 @@ msmsdcc_irq(int irq, void *dev_id)
 #endif
 
 		if (status & MCI_SDIOINTROPE) {
-			if (!mmc->card || mmc_card_sdio(mmc->card)) {
-				WARN(1, "%s: SDIO interrupt received for non-SDIO card\n",
-					mmc_hostname(mmc));
+			if (!mmc->card || (mmc->card &&
+			    !mmc_card_sdio(mmc->card))) {
+				pr_warning("%s: SDIO interrupt (SDIOINTROPE) received for non-SDIO card\n",
+					   mmc_hostname(mmc));
 				ret = 1;
 				break;
 			}
@@ -2500,6 +2636,9 @@ out:
 	return rc;
 }
 
+#if defined ( CONFIG_BCMDHD ) || defined( CONFIG_BCMDHD_MODULE )
+#define SLOT_SKIP_REGULATOR_CHECK 2
+#endif
 static int msmsdcc_setup_vreg(struct msmsdcc_host *host, bool enable,
 		bool is_init)
 {
@@ -2509,6 +2648,10 @@ static int msmsdcc_setup_vreg(struct msmsdcc_host *host, bool enable,
 
 	curr_slot = host->plat->vreg_data;
 	if (!curr_slot) {
+#if defined ( CONFIG_BCMDHD ) || defined( CONFIG_BCMDHD_MODULE )
+		if(host->mmc->index == SLOT_SKIP_REGULATOR_CHECK)
+			return 0;
+#endif /* CONFIG_BCMDHD */
 		rc = -EINVAL;
 		goto out;
 	}
@@ -2545,7 +2688,7 @@ static int msmsdcc_vreg_reset(struct msmsdcc_host *host)
 	rc = msmsdcc_setup_vreg(host, 0, true);
 	return rc;
 }
-
+#ifndef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
 enum vdd_io_level {
 	/* set vdd_io_data->low_vol_level */
 	VDD_IO_LOW,
@@ -2557,6 +2700,7 @@ enum vdd_io_level {
 	 */
 	VDD_IO_SET_LEVEL,
 };
+#endif
 
 /*
  * This function returns the current VDD IO voltage level.
@@ -2564,7 +2708,11 @@ enum vdd_io_level {
  * Returns 0 if regulator was disabled or if VDD_IO (and VDD)
  * regulator were not defined for host.
  */
+#ifndef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
 static int msmsdcc_get_vdd_io_vol(struct msmsdcc_host *host)
+#else
+int msmsdcc_get_vdd_io_vol(struct msmsdcc_host *host)
+#endif
 {
 	int rc = 0;
 
@@ -2633,10 +2781,16 @@ static void msmsdcc_update_io_pad_pwr_switch(struct msmsdcc_host *host)
 	}
 	spin_unlock_irqrestore(&host->lock, flags);
 }
-
+#ifndef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
 static int msmsdcc_set_vdd_io_vol(struct msmsdcc_host *host,
 				  enum vdd_io_level level,
 				  unsigned int voltage_level)
+
+#else
+int msmsdcc_set_vdd_io_vol(struct msmsdcc_host *host,
+				  enum vdd_io_level level,
+				  unsigned int voltage_level)
+#endif
 {
 	int rc = 0;
 	int set_level;
@@ -4308,6 +4462,39 @@ static const struct mmc_host_ops msmsdcc_ops = {
 	.hw_reset = msmsdcc_hw_reset,
 	.notify_load = msmsdcc_notify_load,
 };
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
+static unsigned int
+msmsdcc_slot_status(struct msmsdcc_host *host)
+{
+
+	int status;
+	unsigned int gpio_no = host->plat->status_gpio;
+	status = gpio_request(gpio_no, "SD_HW_Detect");
+
+	if (status) {
+		pr_err("%s: %s: Failed to request GPIO %d\n",
+			mmc_hostname(host->mmc), __func__, gpio_no);
+	} else {
+		status = gpio_direction_input(gpio_no);
+
+		if (!status) {
+			status = gpio_get_value_cansleep(gpio_no);
+			if(host->plat->hw_rev_sd_low)
+			{
+				if (host->plat->is_status_gpio_active_low)
+					status = !status;
+			}
+			else
+			{
+				host->plat->is_status_gpio_active_low = 0;
+			}
+
+		}
+		gpio_free(gpio_no);
+	}
+	return status;
+}
+#else
 
 static unsigned int
 msmsdcc_slot_status(struct msmsdcc_host *host)
@@ -4330,7 +4517,10 @@ msmsdcc_slot_status(struct msmsdcc_host *host)
 	}
 	return status;
 }
-
+#endif
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+extern char clock_flag;
+#endif
 static void
 msmsdcc_check_status(unsigned long data)
 {
@@ -4364,6 +4554,14 @@ msmsdcc_check_status(unsigned long data)
 					mmc_hostname(host->mmc),
 					host->oldstat, status);
 			mmc_detect_change(host->mmc, 0);
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+			if(host->oldstat == 1 && status ==0)
+			{
+				host->plat->vreg_data->vdd_io_data->low_vol_level = 1850000;
+			       host->plat->vreg_data->vdd_io_data->high_vol_level = 2950000;
+				   clock_flag =0;
+			}
+#endif
 		}
 		host->oldstat = status;
 	} else {
@@ -6010,6 +6208,10 @@ msmsdcc_probe(struct platform_device *pdev)
 
 	wake_lock_init(&host->sdio_suspend_wlock, WAKE_LOCK_SUSPEND,
 			mmc_hostname(mmc));
+#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
+	if(mmc->index ==1)
+		mmc_control_mmchost=mmc;
+#endif
 	/*
 	 * Setup card detect change
 	 */
@@ -6088,7 +6290,7 @@ msmsdcc_probe(struct platform_device *pdev)
 	mmc->clk_scaling.up_threshold = 35;
 	mmc->clk_scaling.down_threshold = 5;
 	mmc->clk_scaling.polling_delay_ms = 100;
-	mmc->caps2 |= MMC_CAP2_CLK_SCALE;
+	//mmc->caps2 |= MMC_CAP2_CLK_SCALE;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	host->early_suspend.suspend = msmsdcc_early_suspend;
@@ -6493,6 +6695,11 @@ out:
 	return rc;
 }
 
+#if defined(CONFIG_LGE_BCM433X_PATCH) && !defined(CONFIG_BCMDHD_MODULE)
+static struct msmsdcc_host *wlan_host;
+static int sdc4_clk_enable = 0;
+#endif 
+
 static int
 msmsdcc_runtime_resume(struct device *dev)
 {
@@ -6507,7 +6714,14 @@ msmsdcc_runtime_resume(struct device *dev)
 	if (mmc) {
 		if (mmc->card && mmc_card_sdio(mmc->card) &&
 				mmc_card_keep_power(mmc)) {
-			msmsdcc_ungate_clock(host);
+#if defined(CONFIG_LGE_BCM433X_PATCH) && !defined(CONFIG_BCMDHD_MODULE)
+			if((host!=wlan_host) || (host==wlan_host && sdc4_clk_enable==1))
+			{
+#endif 
+				msmsdcc_ungate_clock(host);
+#if defined(CONFIG_LGE_BCM433X_PATCH) && !defined(CONFIG_BCMDHD_MODULE)
+			}
+#endif 
 		}
 
 		mmc_resume_host(mmc);
@@ -6547,6 +6761,9 @@ static int msmsdcc_runtime_idle(struct device *dev)
 	if (host->plat->is_sdio_al_client)
 		return 0;
 
+    if (!strcmp(mmc_hostname(mmc), "mmc1")){
+        host->idle_tout_ms = MSM_MMC_DEFAULT_IDLE_TIMEOUT * 6;
+    }
 	/* Idle timeout is not configurable for now */
 	pm_schedule_suspend(dev, host->idle_tout_ms);
 
@@ -6660,6 +6877,52 @@ static int msmsdcc_runtime_resume(struct device *dev)
 {
 	return 0;
 }
+#endif
+#if defined(CONFIG_LGE_BCM433X_PATCH) && !defined(CONFIG_BCMDHD_MODULE)
+int sdc_clock_enable(struct mmc_host *mmc)
+{
+	struct msmsdcc_host *host = mmc_priv(mmc);
+	int rc = 0;
+	
+	mutex_lock(&host->clk_mutex);
+
+	rc = msmsdcc_setup_clocks(host, true);
+	mutex_unlock(&host->clk_mutex);
+	return rc;
+}
+int sdc_clock_disable(struct mmc_host *mmc)
+{
+	struct msmsdcc_host *host = mmc_priv(mmc);
+	
+	int rc = 0;
+	mutex_lock(&host->clk_mutex);
+	rc = msmsdcc_setup_clocks(host, false);
+
+	mutex_unlock(&host->clk_mutex);
+	return rc;
+}
+
+void
+msmsdcc_set_mmc_enable(int card_present, void *dev_id)
+{
+	struct msmsdcc_host *host = dev_id;
+
+	wlan_host = host;
+	sdc4_clk_enable = card_present;
+
+	if(card_present)
+	{
+		if(sdc_clock_enable(host->mmc))
+			printk("[sdc4] clk enable fail!!!\n");
+		
+	}
+	else
+	{
+		if(sdc_clock_disable(host->mmc))
+			printk("[sdc4] clk disable fail!!!\n");
+	}	
+}
+
 #endif
 
 static const struct dev_pm_ops msmsdcc_dev_pm_ops = {

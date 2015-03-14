@@ -18,6 +18,7 @@
 
 #include <linux/mmc/core.h>
 #include <linux/mmc/pm.h>
+#include <linux/err.h>
 
 struct mmc_ios {
 	unsigned int	clock;			/* clock rate */
@@ -439,6 +440,9 @@ static inline void mmc_signal_sdio_irq(struct mmc_host *host)
 
 	host->ops->enable_sdio_irq(host, 0);
 	host->sdio_irq_pending = true;
+
+	if(!atomic_read(&host->sdio_irq_thread_abort)
+		&& !IS_ERR_OR_NULL(host->sdio_irq_thread))
 	wake_up_process(host->sdio_irq_thread);
 }
 

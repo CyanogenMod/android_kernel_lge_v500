@@ -24,6 +24,8 @@
 
 #define BUILD_ID_LENGTH 32
 
+extern int g_speed_bin;
+extern int g_pvs_bin;
 enum {
 	HW_PLATFORM_UNKNOWN = 0,
 	HW_PLATFORM_SURF    = 1,
@@ -315,6 +317,35 @@ static struct socinfo_v1 dummy_socinfo = {
 	.version = 1,
 };
 
+#if defined (CONFIG_LGE_PM)
+#if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_GVAR_CMCC) || defined(CONFIG_MACH_APQ8064_L05E)  || defined(CONFIG_MACH_APQ8064_OMEGAR_KR)|| defined(CONFIG_MACH_APQ8064_OMEGA_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
+u16 *poweron_st = 0;
+uint16_t power_on_status_info_get(void)
+{
+    poweron_st = smem_alloc(SMEM_POWER_ON_STATUS_INFO, sizeof(poweron_st));
+
+    if( poweron_st == NULL ) return 0 ;
+    return *poweron_st;
+}
+EXPORT_SYMBOL(power_on_status_info_get);
+
+
+u32 *batt_info = 0;
+uint32_t battery_info_get(void)
+{
+    batt_info = smem_alloc(SMEM_BATT_INFO, sizeof(batt_info));
+
+    if (batt_info == NULL) {
+		pr_err("%s: smem_alloc returns NULL\n", __func__);
+		return 0;
+    }
+
+    return *batt_info;
+}
+EXPORT_SYMBOL(battery_info_get);
+#endif
+#endif
+
 uint32_t socinfo_get_id(void)
 {
 	return (socinfo) ? socinfo->v1.id : 0;
@@ -391,6 +422,14 @@ uint32_t socinfo_get_pmic_die_revision(void)
 		: 0;
 }
 
+int socinfo_get_speed_bin(void)
+{
+	return g_speed_bin;
+}
+int socinfo_get_pvs_bin(void)
+{
+	return g_pvs_bin;
+}
 enum msm_cpu socinfo_get_msm_cpu(void)
 {
 	return cur_cpu;
@@ -599,10 +638,28 @@ socinfo_show_pmic_die_revision(struct sys_device *dev,
 		socinfo_get_pmic_die_revision());
 }
 
+static ssize_t
+socinfo_show_speed_bin(struct sys_device *dev,
+		       struct sysdev_attribute *attr,
+		       char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%u\n",
+		socinfo_get_speed_bin());
+}
+static ssize_t
+socinfo_show_pvs_bin(struct sys_device *dev,
+		     struct sysdev_attribute *attr,
+		     char *buf)
+{
+	return snprintf(buf, PAGE_SIZE, "%u\n",
+		socinfo_get_pvs_bin());
+}
 static struct sysdev_attribute socinfo_v1_files[] = {
 	_SYSDEV_ATTR(id, 0444, socinfo_show_id, NULL),
 	_SYSDEV_ATTR(version, 0444, socinfo_show_version, NULL),
 	_SYSDEV_ATTR(build_id, 0444, socinfo_show_build_id, NULL),
+	_SYSDEV_ATTR(speed_bin, 0444, socinfo_show_speed_bin, NULL),
+	_SYSDEV_ATTR(pvs_bin, 0444, socinfo_show_pvs_bin, NULL),
 };
 
 static struct sysdev_attribute socinfo_v2_files[] = {

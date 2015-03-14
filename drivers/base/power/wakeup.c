@@ -374,12 +374,39 @@ EXPORT_SYMBOL_GPL(device_set_wakeup_enable);
  */
 static void wakeup_source_activate(struct wakeup_source *ws)
 {
+#if defined (CONFIG_MACH_APQ8064_OMEGA) || defined (CONFIG_MACH_APQ8064_OMEGAR)
+	extern int boost_freq;
+	extern bool suspend_marker_entry;
+	unsigned int cnt, inpr;
+	bool wakeup_pending = true;
+
+	if (suspend_marker_entry) {
+		split_counters(&cnt, &inpr);
+		if (cnt == saved_count && inpr == 0) {
+			wakeup_pending = false;
+		}
+	}
+#endif
 	ws->active = true;
 	ws->active_count++;
 	ws->last_time = ktime_get();
 
 	/* Increment the counter of events in progress. */
 	atomic_inc(&combined_event_count);
+
+#if defined (CONFIG_MACH_APQ8064_OMEGA) || defined (CONFIG_MACH_APQ8064_OMEGAR)
+	if (suspend_marker_entry) {
+		if (!wakeup_pending) {
+			if (boost_freq == 1) {
+				if (!strcmp(ws->name, "touch_irq") || !strcmp(ws->name, "hall_ic_wakeups")){
+					printk(KERN_ERR "ws->name=%s, boost_Freq=%d\n", ws->name, boost_freq);
+					boost_freq++;
+					printk(KERN_ERR "ws->name=%s, boost_Freq=%d\n", ws->name, boost_freq);
+				}
+			}
+		}
+	}
+#endif
 }
 
 /**

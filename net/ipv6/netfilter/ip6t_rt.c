@@ -112,7 +112,7 @@ static bool rt_mt6(const struct sk_buff *skb, struct xt_action_param *par)
 					sizeof(_reserved),
 					&_reserved);
 
-		ret = (*rp == 0);
+		ret = (rp != NULL) && (*rp == 0);
 	}
 
 	pr_debug("#%d ", rtinfo->addrnr);

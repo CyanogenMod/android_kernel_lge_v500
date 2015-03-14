@@ -69,6 +69,7 @@ struct msm_hsl_port {
 	unsigned int            old_snap_state;
 	unsigned int		ver_id;
 	int			tx_timeout;
+	uint8_t			isShutdown;
 	short			cons_flags;
 };
 
@@ -347,6 +348,17 @@ static void handle_rx(struct uart_port *port, unsigned int misr)
 
 		sr = msm_hsl_read(port, regmap[vid][UARTDM_SR]);
 		if ((sr & UARTDM_SR_RXRDY_BMSK) == 0) {
+/*           
+                                                
+                              
+                                                                        
+                                 
+ */
+#if defined(CONFIG_LGE_FELICA) || defined(CONFIG_LGE_NFC_SONY_CXD2235AGG)
+			if (msm_hsl_port->old_snap_state < count)
+				msm_hsl_port->old_snap_state = 0;
+			else
+#endif /*                   */
 			msm_hsl_port->old_snap_state -= count;
 			break;
 		}
@@ -516,6 +528,9 @@ static void msm_hsl_reset(struct uart_port *port)
 {
 	unsigned int vid = UART_TO_MSM(port)->ver_id;
 
+	if( !(UART_TO_MSM(port)->isShutdown) ) // gate a unclocked register
+	    return ;
+
 	/* reset everything */
 	msm_hsl_write(port, RESET_RX, regmap[vid][UARTDM_CR]);
 	msm_hsl_write(port, RESET_TX, regmap[vid][UARTDM_CR]);
@@ -578,6 +593,9 @@ static void msm_hsl_set_baud_rate(struct uart_port *port, unsigned int baud)
 	unsigned int data;
 	unsigned int vid;
 	struct msm_hsl_port *msm_hsl_port = UART_TO_MSM(port);
+
+	if( !(UART_TO_MSM(port)->isShutdown) ) // gate a unclocked register
+	    return ;
 
 	switch (baud) {
 	case 300:
@@ -703,6 +721,8 @@ static int msm_hsl_startup(struct uart_port *port)
 	int ret;
 	unsigned long flags;
 
+	UART_TO_MSM(port)->isShutdown = 1 ; // use for shudown flag
+
 	snprintf(msm_hsl_port->name, sizeof(msm_hsl_port->name),
 		 "msm_serial_hsl%d", port->line);
 
@@ -780,6 +800,8 @@ static void msm_hsl_shutdown(struct uart_port *port)
 	const struct msm_serial_hslite_platform_data *pdata =
 					pdev->dev.platform_data;
 
+	UART_TO_MSM(port)->isShutdown = 0 ; // use for shudown flag
+
 	msm_hsl_port->imr = 0;
 	/* disable interrupts */
 	msm_hsl_write(port, 0, regmap[msm_hsl_port->ver_id][UARTDM_IMR]);
@@ -815,6 +837,23 @@ static void msm_hsl_set_termios(struct uart_port *port,
 	/* calculate and set baud rate */
 	baud = uart_get_baud_rate(port, termios, old, 300, 460800);
 
+/*                                                    
+                    
+                               
+                                                                        
+ */
+#ifdef CONFIG_LGE_IRDA
+	if(port->line == 3){
+		msm_hsl_write(port, 0x03, UARTDM_IRDA_ADDR);
+	}
+
+#endif
+/*                                                   */
+#if defined(CONFIG_LGE_IRRC)
+	if(port->line ==1){
+		termios->c_cflag |= B19200;
+	}
+#endif
 	msm_hsl_set_baud_rate(port, baud);
 
 	vid = UART_TO_MSM(port)->ver_id;
@@ -999,10 +1038,11 @@ static void msm_hsl_power(struct uart_port *port, unsigned int state,
 {
 	int ret;
 	struct msm_hsl_port *msm_hsl_port = UART_TO_MSM(port);
+#ifndef CONFIG_LGE_IRRC
 	struct platform_device *pdev = to_platform_device(port->dev);
 	const struct msm_serial_hslite_platform_data *pdata =
 					pdev->dev.platform_data;
-
+#endif
 	switch (state) {
 	case 0:
 		ret = clk_set_rate(msm_hsl_port->clk, 7372800);
@@ -1013,11 +1053,17 @@ static void msm_hsl_power(struct uart_port *port, unsigned int state,
 		break;
 	case 3:
 		clk_en(port, 0);
+#ifdef CONFIG_LGE_IRRC
+		ret = clk_set_rate(msm_hsl_port->clk,0);
+		if(ret)
+			pr_err("Error setting UART clock rate to zero. \n");
+#else
 		if (pdata && pdata->set_uart_clk_zero) {
 			ret = clk_set_rate(msm_hsl_port->clk, 0);
 			if (ret)
 				pr_err("Error setting UART clock rate to zero.\n");
 		}
+#endif
 		break;
 	default:
 		pr_err("%s(): msm_serial_hsl: Unknown PM state %d\n",
@@ -1071,6 +1117,15 @@ static struct msm_hsl_port msm_hsl_uart_ports[] = {
 			.flags = UPF_BOOT_AUTOCONF,
 			.fifosize = 64,
 			.line = 2,
+		},
+	},
+	{
+		.uart = {
+			.iotype = UPIO_MEM,
+			.ops = &msm_hsl_uart_pops,
+			.flags = UPF_BOOT_AUTOCONF,
+			.fifosize = 64,
+			.line = 3,
 		},
 	},
 };

@@ -30,6 +30,7 @@
 #include "diag_masks.h"
 #include "diagfwd_bridge.h"
 
+#include "mtsk_tty.h"
 struct diag_bridge_dev *diag_bridge;
 
 /* diagfwd_connect_bridge is called when the USB mdm channel is connected */
@@ -48,6 +49,24 @@ int diagfwd_connect_bridge(int process_cable)
 void connect_bridge(int process_cable, int index)
 {
 	int err;
+
+//                                                                             
+#ifdef CONFIG_LGE_DM_DEV
+			if ((process_cable) && (driver->logging_mode == DM_DEV_MODE)) {
+				printk(KERN_DEBUG "diag: USB connected in DM_DEV_MODE\n");
+				diag_bridge[index].usb_connected = 1;
+			}
+#endif /*                 */
+//                                                                           
+
+
+#ifdef CONFIG_LGE_DM_APP
+	if ((process_cable) && (driver->logging_mode == DM_APP_MODE)) {
+		printk(KERN_DEBUG "diag: USB connected in DM_APP_MODE\n");
+		diag_bridge[index].usb_connected = 1;
+	}
+#endif /*                 */
+
 
 	mutex_lock(&diag_bridge[index].bridge_mutex);
 	/* If the usb cable is being connected */
@@ -118,6 +137,35 @@ int diagfwd_disconnect_bridge(int process_cable)
 {
 	int i;
 	pr_debug("diag: In %s, process_cable: %d\n", __func__, process_cable);
+//                                                                             
+#ifdef CONFIG_LGE_DM_DEV
+		if (driver->logging_mode == DM_DEV_MODE) {
+			for (i = 0; i < MAX_BRIDGES; i++) {
+				mutex_lock(&diag_bridge[i].bridge_mutex);
+				if (diag_bridge[i].enabled) {
+					diag_bridge[i].usb_connected = 0;
+					}
+				mutex_unlock(&diag_bridge[i].bridge_mutex);
+				}
+			return 0;
+		}
+#endif /*                 */
+//                                                                           
+
+
+#ifdef CONFIG_LGE_DM_APP
+			if (driver->logging_mode == DM_APP_MODE) {
+				for (i = 0; i < MAX_BRIDGES; i++) {
+					mutex_lock(&diag_bridge[i].bridge_mutex);
+					if (diag_bridge[i].enabled) {
+						diag_bridge[i].usb_connected = 0;
+						}
+					mutex_unlock(&diag_bridge[i].bridge_mutex);
+					}
+				return 0;
+			}
+#endif /*                 */
+
 
 	for (i = 0; i < MAX_BRIDGES; i++) {
 		if (diag_bridge[i].enabled) {
@@ -270,6 +318,15 @@ void diagfwd_bridge_init(int index)
 		strlcpy(name, "hsic_2", sizeof(name));
 	} else if (index == SMUX) {
 		strlcpy(name, "smux", sizeof(name));
+//                                                                             
+#if defined(CONFIG_LGE_DM_DEV) || defined(CONFIG_LGE_DM_APP)
+
+	} else if (index == HSIC_3) {
+		strlcpy(name, "hsic_3", sizeof(name));
+	} else if (index == HSIC_4) {
+		strlcpy(name, "hsic_4", sizeof(name));
+#endif /*                   */
+//                                                                           
 	} else {
 		pr_err("diag: incorrect bridge init, instance: %d\n", index);
 		return;
@@ -387,3 +444,9 @@ void diagfwd_bridge_exit(void)
 	}
 	kfree(driver->write_ptr_mdm);
 }
+int mtsk_tty_send_mask(struct diag_request *diag_read_ptr) {
+
+
+	return diagfwd_read_complete_bridge(diag_read_ptr);
+}
+

@@ -469,6 +469,10 @@ static int msm_cache_erp_probe(struct platform_device *pdev)
 	struct resource *r;
 	int ret, cpu;
 
+// to remove "L2 master port error detected" warnning at the first after registering IRQ
+#ifdef CONFIG_ARCH_APQ8064
+	set_l2_indirect_reg(L2ESR_IND_ADDR, get_l2_indirect_reg(L2ESR_IND_ADDR));
+#endif
 	r = platform_get_resource_byname(pdev, IORESOURCE_IRQ, "l1_irq");
 
 	if (!r) {

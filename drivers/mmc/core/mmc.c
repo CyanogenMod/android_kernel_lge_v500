@@ -23,6 +23,7 @@
 #include "mmc_ops.h"
 #include "sd_ops.h"
 
+
 static const unsigned int tran_exp[] = {
 	10000,		100000,		1000000,	10000000,
 	0,		0,		0,		0
@@ -292,7 +293,9 @@ static int mmc_read_ext_csd(struct mmc_card *card, u8 *ext_csd)
 	}
 
 	card->ext_csd.rev = ext_csd[EXT_CSD_REV];
-	if (card->ext_csd.rev > 6) {
+/*                                                                              */
+	if (card->ext_csd.rev > 7) {
+/*                                                                            */
 		printk(KERN_ERR "%s: unrecognised EXT_CSD revision %d\n",
 			mmc_hostname(card->host), card->ext_csd.rev);
 		err = -EINVAL;
@@ -1522,8 +1525,10 @@ static int mmc_suspend(struct mmc_host *host)
 
 	if (mmc_can_poweroff_notify(host->card))
 		err = mmc_poweroff_notify(host->card, EXT_CSD_POWER_OFF_SHORT);
+#ifndef CONFIG_MACH_LGE
 	else if (mmc_card_can_sleep(host))
 		err = mmc_card_sleep(host);
+#endif
 	else if (!mmc_host_is_spi(host))
 		mmc_deselect_cards(host);
 	host->card->state &= ~(MMC_STATE_HIGHSPEED | MMC_STATE_HIGHSPEED_200);

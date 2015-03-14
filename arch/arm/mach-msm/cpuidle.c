@@ -33,7 +33,30 @@ static struct msm_cpuidle_state msm_cstates[] = {
 	{0, 1, "C1", "RETENTION",
 		MSM_PM_SLEEP_MODE_RETENTION},
 
-	{0, 2, "C2", "STANDALONE_POWER_COLLAPSE",
+#ifndef CONFIG_LGE_USE_STANDALONE_POWER_COLLAPSE
+	{0, 2, "C3", "POWER_COLLAPSE",
+		MSM_PM_SLEEP_MODE_POWER_COLLAPSE},
+
+	{0, 3, "C0", "WFI",
+		MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT},
+
+	{1, 0, "C1", "RETENTION",
+		MSM_PM_SLEEP_MODE_RETENTION},
+
+	{1, 1, "C0", "WFI",
+		MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT},
+
+	{1, 2, "C1", "RETENTION",
+		MSM_PM_SLEEP_MODE_RETENTION},
+
+	{2, 0, "C0", "WFI",
+		MSM_PM_SLEEP_MODE_WAIT_FOR_INTERRUPT},
+
+	{2, 1, "C1", "RETENTION",
+		MSM_PM_SLEEP_MODE_RETENTION},
+#else
+      /* QCT original code*/
+       {0, 2, "C2", "STANDALONE_POWER_COLLAPSE",
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE},
 
 	{0, 3, "C3", "POWER_COLLAPSE",
@@ -65,6 +88,8 @@ static struct msm_cpuidle_state msm_cstates[] = {
 
 	{3, 2, "C2", "STANDALONE_POWER_COLLAPSE",
 		MSM_PM_SLEEP_MODE_POWER_COLLAPSE_STANDALONE},
+
+#endif
 };
 
 static int msm_cpuidle_enter(

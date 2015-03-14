@@ -1818,15 +1818,17 @@ static struct dst_entry *ipv4_dst_check(struct dst_entry *dst, u32 cookie)
 static void ipv4_dst_destroy(struct dst_entry *dst)
 {
 	struct rtable *rt = (struct rtable *) dst;
-	struct inet_peer *peer = rt->peer;
+	struct inet_peer *peer = (rt != NULL) ? rt->peer : NULL;
 
-	if (rt->fi) {
-		fib_info_put(rt->fi);
-		rt->fi = NULL;
-	}
-	if (peer) {
-		rt->peer = NULL;
-		inet_putpeer(peer);
+	if(rt != NULL){ //                                     
+		if (rt->fi) {
+			fib_info_put(rt->fi);
+			rt->fi = NULL;
+		}
+		if (peer) {
+			rt->peer = NULL;
+			inet_putpeer(peer);
+		}
 	}
 }
 
@@ -2799,6 +2801,15 @@ static struct rtable *ip_route_output_slow(struct net *net, struct flowi4 *fl4)
 		fl4->saddr = FIB_RES_PREFSRC(net, res);
 
 	dev_out = FIB_RES_DEV(res);
+
+	/*                                                                   */
+	if (dev_out == NULL) {
+		printk(KERN_DEBUG "dev_out is null\n");
+		rth = ERR_PTR(-ENETUNREACH);
+		goto out;
+	}
+	/*                                                                 */
+
 	fl4->flowi4_oif = dev_out->ifindex;
 
 

@@ -42,6 +42,14 @@ static int msm_csid_cid_lut(
 		return -EINVAL;
 	}
 	for (i = 0; i < csid_lut_params->num_cid && i < 16; i++) {
+#if defined(CONFIG_LGE_GK_CAMERA)
+		pr_err("%s lut params num_cid = %d, cid = %d, dt = %x, df = %d\n",
+			__func__,
+			csid_lut_params->num_cid,
+			csid_lut_params->vc_cfg[i].cid,
+			csid_lut_params->vc_cfg[i].dt,
+			csid_lut_params->vc_cfg[i].decode_format);
+#else
 		if (csid_lut_params->vc_cfg[i].cid >=
 			csid_lut_params->num_cid ||
 			csid_lut_params->vc_cfg[i].cid < 0) {
@@ -56,6 +64,7 @@ static int msm_csid_cid_lut(
 			csid_lut_params->vc_cfg[i].cid,
 			csid_lut_params->vc_cfg[i].dt,
 			csid_lut_params->vc_cfg[i].decode_format);
+#endif
 		if (csid_lut_params->vc_cfg[i].dt < 0x12 ||
 			csid_lut_params->vc_cfg[i].dt > 0x37) {
 			CDBG("%s: unsupported data type 0x%x\n",

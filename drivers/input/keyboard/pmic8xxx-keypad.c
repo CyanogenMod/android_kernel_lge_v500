@@ -278,6 +278,16 @@ static void __pmic8xxx_kp_scan_matrix(struct pmic8xxx_kp *kp, u16 *new_state,
 			dev_dbg(kp->dev, "key [%d:%d] %s\n", row, col,
 					!(new_state[row] & (1 << col)) ?
 					"pressed" : "released");
+#if defined(CONFIG_MACH_APQ8064_GKKT)||defined(CONFIG_MACH_APQ8064_GKU) || defined(CONFIG_MACH_APQ8064_GKSK)
+			if(!row && !col)
+				pr_info("[key] Volume Down %s\n",!(new_state[row] & (1 << col)) ? "pressed" : "released");
+			else if(!row && col)
+				pr_info("[key] Volume Up %s\n",!(new_state[row] & (1 << col)) ? "pressed" : "released");
+			else if(row && !col)
+				pr_info("[key] Quick Memo %s\n",!(new_state[row] & (1 << col)) ? "pressed" : "released");
+			else
+				pr_info("[key] Home %s\n",!(new_state[row] & (1 << col)) ? "pressed" : "released");
+#endif
 
 			code = MATRIX_SCAN_CODE(row, col, PM8XXX_ROW_SHIFT);
 

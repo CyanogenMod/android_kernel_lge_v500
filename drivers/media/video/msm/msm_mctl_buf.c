@@ -35,6 +35,10 @@
 #define D(fmt, args...) do {} while (0)
 #endif
 
+//                                                                    
+int logcount_nofreebuffer_available = 0;
+//                                                                  
+
 static int msm_vb2_ops_queue_setup(struct vb2_queue *vq,
 				const struct v4l2_format *fmt,
 				unsigned int *num_buffers,
@@ -223,7 +227,7 @@ static void msm_vb2_ops_buf_cleanup(struct vb2_buffer *vb)
 		for (i = 0; i < vb->num_planes; i++) {
 			mem = vb2_plane_cookie(vb, i);
 			if (!mem) {
-				D("%s Inst %p memory already freed up. return",
+				pr_err("%s Inst %p memory already freed up. return",
 					__func__, pcam_inst);
 				return;
 			}
@@ -244,7 +248,10 @@ static void msm_vb2_ops_buf_cleanup(struct vb2_buffer *vb)
 	} else {
 		mem = vb2_plane_cookie(vb, 0);
 		if (!mem)
+		{
+			pr_err("%s:mem is NULL, pcam_inst->vid_fmt.type=%d",__func__, pcam_inst->vid_fmt.type);
 			return;
+		}
 		D("%s: inst=0x%x, buf=0x%x, idx=%d\n", __func__,
 		(uint32_t)pcam_inst, (uint32_t)buf, vb->v4l2_buf.index);
 		vb_phyaddr = (unsigned long) videobuf2_to_pmem_contig(vb, 0);
@@ -269,11 +276,41 @@ static void msm_vb2_ops_buf_cleanup(struct vb2_buffer *vb)
 		buf->state = MSM_BUFFER_STATE_UNUSED;
 		return;
 	}
+/*                                                                              */
+	if (!get_server_use_count() &&
+		pmctl && pmctl->hardware_running) {
+		pr_err("%s: daemon crashed but hardware is still running\n",
+			   __func__);
+		if (pmctl->mctl_release) {
+			pr_err("%s: Releasing now\n", __func__);
+			/*do not send any commands to hardware
+			after reaching this point*/
+			pmctl->mctl_cmd = NULL;
+			pmctl->mctl_release(pmctl);
+			pmctl->mctl_release = NULL;
+			pmctl->hardware_running = 0;
+		}
+		else {
+			pr_err("%s: pmctl release is NULL\n", __func__);
+		}
+	} else {
+		pr_err("server use count %d, pmctl pointer %p, hardware_running %d\n", get_server_use_count(),
+		pmctl, pmctl->hardware_running);
+	}
+/*                                                                              */
 	for (i = 0; i < vb->num_planes; i++) {
 		mem = vb2_plane_cookie(vb, i);
 		if (mem) {
-			videobuf2_pmem_contig_user_put(mem, pmctl->client,
-				pmctl->domain_num);
+//                                                     
+		videobuf2_pmem_contig_user_put(mem, pmctl->client,
+			pmctl->domain_num
+/*                                                               */
+#if defined(CONFIG_LGE_GK_CAMERA) 
+			, pcam_inst->is_closing
+#endif
+/*                                                             */
+			);
+
 		} else {
 			pr_err("%s Inst %p buffer plane cookie is null",
 				__func__, pcam_inst);
@@ -725,6 +762,16 @@ int msm_mctl_reserve_free_buf(
 	 * camera instance, he would send the preferred camera instance.
 	 * If the preferred camera instance is NULL, get the
 	 * camera instance using the image mode passed */
+
+/*                                                                        */
+#ifdef CONFIG_LGE_GK_CAMERA
+	if(!buf_handle->inst_handle){
+		pr_err("%s: buf_handle->inst_handle is 0\n", __func__);
+		return rc;
+	}
+#endif
+/*                                                                      */
+
 	if (!pcam_inst) {
 		pcam_inst = msm_mctl_get_pcam_inst(pmctl, buf_handle);
 		if(!pcam_inst) {
@@ -810,8 +857,17 @@ int msm_mctl_reserve_free_buf(
 		break;
 	}
 	if (rc != 0)
-		D("%s:No free buffer available: inst = 0x%p ",
-				__func__, pcam_inst);
+	//                                                                    
+	{
+		logcount_nofreebuffer_available++;
+		if (logcount_nofreebuffer_available > 30)
+		{
+			pr_err("%s:No free buffer available: inst = 0x%p ",
+					__func__, pcam_inst);
+			logcount_nofreebuffer_available = 0;
+		}
+	}
+	//                                                                  
 	spin_unlock_irqrestore(&pcam_inst->vq_irqlock, flags);
 	return rc;
 }
