@@ -493,6 +493,10 @@ struct mxt_data {
 	bool smart_cover_enable;
 	bool chargerlogo;
 
+	bool self_test_result;
+	u8 self_test_status[4];
+	u8 self_test_result_status;
+
 #ifdef CONFIG_TOUCHSCREEN_LGE_LPWG
 	u8 lpwg_mode;
 	u8 mxt_multi_tap_enable;
@@ -500,10 +504,6 @@ struct mxt_data {
 
 	bool wrong_lpwg_code;
 	u8 wrong_lpwg_count;
-
-	bool self_test_result;
-	u8 self_test_status[4];
-	u8 self_test_result_status;
 
 	struct hrtimer multi_tap_timer;
 	struct work_struct	multi_tap_work;
@@ -2297,7 +2297,10 @@ static void mxt_proc_t24_messages(struct mxt_data *data, u8 *message)
 #endif
 			wake_lock_timeout(&touch_wake_lock, msecs_to_jiffies(2000));
 			dev_err(&data->client->dev,"Knock On detected x[%3d] y[%3d] \n", x, y);
-			kobject_uevent_env(&lge_touch_sys_device.kobj, KOBJ_CHANGE, knockon_event);
+			input_report_key(data->input_dev, KEY_POWER, true);
+			input_sync(data->input_dev);
+			input_report_key(data->input_dev, KEY_POWER, false);
+			input_sync(data->input_dev);
 #ifdef CONFIG_TOUCHSCREEN_LGE_LPWG
 		}
 #endif
@@ -5525,7 +5528,7 @@ static LGE_TOUCH_ATTR(knock_on_type, S_IRUGO, mxt_get_knockon_type, NULL);
 static LGE_TOUCH_ATTR(lpwg_data, S_IRUGO | S_IWUSR, show_lpwg_data, store_lpwg_data);
 static LGE_TOUCH_ATTR(lpwg_notify, S_IRUGO | S_IWUSR, NULL, store_lpwg_notify);
 #else
-static LGE_TOUCH_ATTR(touch_gesture,S_IRUGO | S_IWUSR, NULL, mxt_knock_on_store);
+static LGE_TOUCH_ATTR(knock_on,S_IRUGO | S_IWUSR, NULL, mxt_knock_on_store);
 #endif
 static LGE_TOUCH_ATTR(pen_support, S_IRUGO | S_IWUSR, show_pen_support, NULL);
 static LGE_TOUCH_ATTR(firmware, S_IRUGO, mxt_info_show, NULL);
@@ -5547,7 +5550,7 @@ static struct attribute *mxt_attrs[] = {
 	&lge_touch_attr_lpwg_data.attr,
 	&lge_touch_attr_lpwg_notify.attr,
 #else
-	&lge_touch_attr_touch_gesture.attr,
+	&lge_touch_attr_knock_on.attr,
 #endif
 	&lge_touch_attr_pen_support.attr,
 	&lge_touch_attr_firmware.attr,
@@ -6336,7 +6339,9 @@ static int mxt_suspend(struct device *dev) {
 	struct i2c_client *client = to_i2c_client(dev);
 	struct mxt_data *data = i2c_get_clientdata(client);
 
+#ifdef CONFIG_TOUCHSCREEN_LGE_LPWG
 	dev_info(dev, "%s %d  %d  %d\n", __func__,data->suspended_2nd,data->lpwg_mode,mxt_regulator_on);
+#endif
 
 	if(data->suspended_2nd) return 0;
 
