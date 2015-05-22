@@ -80,11 +80,11 @@ obj-$(CONFIG_PMIC8058_XOADC) += pmic8058-xoadc.o
 obj-$(CONFIG_QSEECOM) += qseecom.o
 obj-$(CONFIG_QFP_FUSE) += qfp_fuse.o
 ifeq ($(CONFIG_MACH_APQ8064_AWIFI),y)
-obj-y += tspdrv_awifi/
+obj-$(CONFIG_TSPDRV) += tspdrv_awifi/
 else ifeq ($(CONFIG_MACH_APQ8064_ALTEV),y)
-obj-y += tspdrv_awifi/
+obj-$(CONFIG_TSPDRV) += tspdrv_awifi/
 else
-obj-y += tspdrv/
+obj-$(CONFIG_TSPDRV) += tspdrv/
 endif
 obj-$(CONFIG_BU52031NVX) += pm8xxx-cradle.o
 obj-$(CONFIG_SLIMPORT_ANX7808)	+= slimport_anx7808/
