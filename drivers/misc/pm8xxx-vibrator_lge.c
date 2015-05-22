@@ -40,6 +40,8 @@
 //                                                                       
 #define VIB_MIN_LEVEL_mV	1000
 
+#define VIB_SHOW_GAIN_COMPUTED	1
+
 /*            */
 unsigned int debug_mask = 0;
 
@@ -547,8 +549,8 @@ static ssize_t pm8xxx_vib_lvl_store(struct device *dev, struct device_attribute 
 	if (gain == 0)
 		level_mV = 0;
 	else {
-		for (idx=0; idx<ARRAY_SIZE(input_value) ; idx++) {
-			if(gain <= input_value[idx])
+		for (idx=0; idx<ARRAY_SIZE(vib_level) ; idx++) {
+			if(gain <= vib_level[idx])
 				break;
 		}
 		level_mV = vib->min_level_mv + step*idx;
