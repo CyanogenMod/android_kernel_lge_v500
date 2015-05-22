@@ -501,14 +501,14 @@ static const struct dev_pm_ops pm8xxx_vib_pm_ops = {
                                   
 */
 #ifdef CONFIG_LGE_PMIC8XXX_VIBRATOR_VOL
-#define MAGNITUDE_MAX 128
+#define MAGNITUDE_MAX 100
 #define MAGNITUDE_MIN 1
 #define MAGNITUDE_DEFAULT 256
 #define FLOATING_POINT_CAL 100
-const int vib_level[7] = {60, 70, 80, 90, 100, 110, 120};
+const int vib_level[12] = {1, 10, 19, 28, 37, 46, 55, 64, 73, 82, 91, 100};
 
 #if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
-const int input_value[] = {2000, 3000, 4000, 5000, 6125, 7531, 80000 };
+const int input_value[] = {2000, 2500, 3000, 3500, 4000, 4500, 5000, 5500, 6125, 6825, 7531, 80000 };
 #endif
 
 static ssize_t pm8xxx_vib_lvl_show(struct device *dev, struct device_attribute *attr, char *buf)
@@ -544,7 +544,7 @@ static ssize_t pm8xxx_vib_lvl_store(struct device *dev, struct device_attribute 
 
 	sscanf(buf, "%d", &gain);
 
-    step = (vib->max_level_mv - vib->min_level_mv) / 6;
+    step = (vib->max_level_mv - vib->min_level_mv) / 11;
 #if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
 	if (gain == 0)
 		level_mV = 0;
