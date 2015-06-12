@@ -112,6 +112,8 @@ source "drivers/edac/Kconfig"
 
 source "drivers/rtc/Kconfig"
 
+source "drivers/esoc/Kconfig"
+
 source "drivers/dma/Kconfig"
 
 source "drivers/dca/Kconfig"
@@ -155,5 +157,7 @@ source "drivers/coresight/Kconfig"
 source "drivers/broadcast/Kconfig"
 
 source "drivers/felica/Kconfig"
+
+source "drivers/sensors/Kconfig"
 
 endmenu
