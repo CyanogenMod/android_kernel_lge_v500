@@ -210,7 +210,7 @@ const unsigned int p_lg_qc_lcdc_lut[256] = {
 	0x00f7f7f7, 0x00f7f7f7, 0x00f8f8f8, 0x00f9f9f9,
 	0x00fafafa, 0x00fafafa, 0x00fbfbfb, 0x00fcfcfc,
 	0x00fdfdfd, 0x00fdfdfd, 0x00fefefe, 0x00ffffff
-#elif defined (CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WUXGA_PT_PANEL)
+#elif defined (CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WUXGA_PT_PANEL) && !defined (CONFIG_MACH_APQ8064_AWIFI)
 	0x00000000, 0x00010101,	0x00020202,	0x00020202,
 	0x00030303,	0x00040404,	0x00050505,	0x00050505,
 	0x00060606,	0x00070707,	0x00080808,	0x00080808,
