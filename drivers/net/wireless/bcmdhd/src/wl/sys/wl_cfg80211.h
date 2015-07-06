@@ -260,7 +260,7 @@ enum wl_prof_list {
 	WL_PROF_DTIMPERIOD
 };
 
-/*                    */
+/* donlge escan state */
 enum wl_escan_state {
     WL_ESCAN_STATE_IDLE,
     WL_ESCAN_STATE_SCANING

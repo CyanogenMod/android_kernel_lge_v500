@@ -28,7 +28,7 @@ extern "C" {
 #include <asm/io.h>/*static*/
 #include <mach/gpio.h>
 #include <mach/socinfo.h>
-#include <mach/board_lge.h>/*                   */
+#include <mach/board_lge.h>/*lge_get_board_revno*/
 
 /*
  *  DEFINE

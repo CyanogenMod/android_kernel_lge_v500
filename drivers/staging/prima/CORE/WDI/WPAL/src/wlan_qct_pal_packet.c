@@ -856,14 +856,14 @@ wpt_status wpalIsPacketLocked( wpt_packet *pPacket)
                     eWLAN_PAL_STATUS_SUCCESS;
 }/*wpalIsPacketLocked*/
 
-/*                                                                           
-                                                                    
-         
-                                              
+/*---------------------------------------------------------------------------
+   wpalGetNumRxRawPacket   Query available RX RAW total buffer count
+   param:
+       numRxResource  pointer of queried value
 
-          
-                               
-                                                                           */
+   return:
+       eWLAN_PAL_STATUS_SUCCESS
+---------------------------------------------------------------------------*/
 wpt_status wpalGetNumRxRawPacket(wpt_uint32 *numRxResource)
 {
    *numRxResource = (wpt_uint32)vos_pkt_get_num_of_rx_raw_pkts();
@@ -871,14 +871,14 @@ wpt_status wpalGetNumRxRawPacket(wpt_uint32 *numRxResource)
    return eWLAN_PAL_STATUS_SUCCESS;
 }
 
-/*                                                                           
-                                                                
-         
-                                              
+/*---------------------------------------------------------------------------
+   wpalGetNumRxFreePacket   Query available RX Free buffer count
+   param:
+       numRxResource  pointer of queried value
 
-          
-                 
-                                                                           */
+   return:
+       WPT_STATUS
+---------------------------------------------------------------------------*/
 wpt_status wpalGetNumRxFreePacket(wpt_uint32 *numRxResource)
 {
    VOS_STATUS status;

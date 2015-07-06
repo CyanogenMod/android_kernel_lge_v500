@@ -685,7 +685,7 @@ ssize_t max17043_show_volt(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "ERROR\n");
 #ifdef CONFIG_BATTERY_MAX17043
 	/*                                                              */
-	if(0 /*                        */){
+	if(0 /*lge_power_test_flag == 1*/){
 		cancel_delayed_work(&reference->work);
 
 #if 0 //Fixme build error
@@ -742,7 +742,7 @@ ssize_t max17043_show_soc(struct device *dev,
 		return snprintf(buf, PAGE_SIZE, "ERROR\n");
 #ifdef CONFIG_BATTERY_MAX17043
 	/*                                                              */
-	if(0 /*                        */){
+	if(0 /*lge_power_test_flag == 1*/){
 		cancel_delayed_work(&reference->work);
 #if 0 //Fixme build error
 		pm8921_charger_enable(0);

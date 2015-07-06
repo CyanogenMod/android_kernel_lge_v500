@@ -56,8 +56,9 @@ int g_pvs_bin;
 #if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
 		|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
 int limit_cpufreq = 0;
+#elif defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+extern int lge_boot_mode_check;
 #endif
-
 static DEFINE_MUTEX(driver_lock);
 static DEFINE_SPINLOCK(l2_lock);
 
@@ -507,7 +508,12 @@ static int acpuclk_krait_set_rate(int cpu, unsigned long rate,
 	if(limit_cpufreq) {
 		if(rate > 1242000) rate = 1242000;	
 	}
+#elif defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
+  if(lge_boot_mode_check == 2){
+		if(rate > 1242000) rate = 1242000;
+	}
 #endif
+
 	if (cpu > num_possible_cpus())
 		return -EINVAL;
 

@@ -898,7 +898,7 @@ int32_t ce1702_power_up(struct msm_sensor_ctrl_t *s_ctrl)
 		LDBGE("%s: PM request gpio failed\n", __func__);
 	}
 #elif defined(CONFIG_MACH_APQ8064_GVAR_CMCC) || defined(CONFIG_MACH_APQ8064_OMEGAR) || defined(CONFIG_MACH_APQ8064_OMEGA)
-//                                                                               
+//	LDBGI("%s: Revision [%d] ISP_RST GPIO No.%d\n",__func__, lge_bd_rev, ISP_RST);
 	rc = gpio_request(ISP_RST, "ISP_RST");
 	if (rc) {
 		LDBGE("%s: PM request gpio failed\n", __func__);

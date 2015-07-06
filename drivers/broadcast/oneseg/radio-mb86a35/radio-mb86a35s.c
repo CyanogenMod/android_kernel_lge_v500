@@ -10241,7 +10241,7 @@ select_antenna_return:
 #endif
 static int mb86a35_open(struct inode *inode, struct file *filp)
 {
-	//       
+	//for lge
 	//unsigned int majorno, minorno;
 	unsigned char *devarea;
 	mb86a35_cmdcontrol_t *cmdctrl;
@@ -10270,7 +10270,7 @@ static int mb86a35_open(struct inode *inode, struct file *filp)
 		 PRINT_LHEADER, (int)filp, (int)(filp->f_dentry),
 		 (int)(filp->f_dentry->d_inode));
 
-	//                              
+	//for lge misc character device 
 	//majorno = imajor(filp->f_dentry->d_inode);
 	//minorno = iminor(filp->f_dentry->d_inode);
 	//if ((majorno != NODE_MAJOR) || (minorno != NODE_MINOR)) {
@@ -10311,7 +10311,7 @@ static int mb86a35_open(struct inode *inode, struct file *filp)
 		 " : Normal return. file->private_data[ 0x%08x ]\n",
 		 PRINT_LHEADER, (int)filp->private_data);
 
-	//   
+	//lge
 //                                                                  
 #if 1		
 	wake_lock(&MMBICtrlInfo.wake_lock);
@@ -10339,7 +10339,7 @@ static int mb86a35_open(struct inode *inode, struct file *filp)
 static
 int mb86a35_close(struct inode *inode, struct file *filp)
 {
-	#if 1 //       
+	#if 1 //for lge
 	unsigned char *devarea;
 	mb86a35_cmdcontrol_t *cmdctrl;
 
@@ -11317,7 +11317,7 @@ static int __devinit mb86a35s_spi_probe(struct spi_device *spi)
 
 	DBGPRINT(PRINT_LHEADERFMT "Called. \n", PRINT_LHEADER);
 
-	//                      
+	//for lge static dev/drv
 	#if 0
 	ret = misc_register(&mb86a35s_misc_device);
 	//if ((ret = register_chrdev(devmajor, devname, &mb86a35_fops))) {

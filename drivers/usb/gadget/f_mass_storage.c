@@ -1484,13 +1484,18 @@ static int do_get_sw_ver(struct fsg_common *common, struct fsg_buffhd *bh)
 {
 	u8	*buf = (u8 *) bh->buf;
 	char sw_ver[9] = {0, };
+	int i;
 	/* msm_get_SW_VER_type(sw_ver); */
 	if (lgeusb_get_sw_ver(sw_ver) < 0)
 		strcpy(sw_ver, "00000000");
 	memset(buf, 0, 9);
+	for (i = 0; i < strlen(sw_ver); i++) {
+		if (sw_ver[i] >= 'a' && sw_ver[i] <= 'z')
+			sw_ver[i] -= 32;
+	}
 	strcpy(buf, sw_ver);
 	pr_info("[AUTORUN] %s: sw_ver: %s\n", __func__, buf);
-	return 7;
+	return 9;
 }
 
 static int do_get_serial(struct fsg_common *common, struct fsg_buffhd *bh)
@@ -1499,15 +1504,16 @@ static int do_get_serial(struct fsg_common *common, struct fsg_buffhd *bh)
 	int i;
 	char imei_temp[15] = {0, };
 	u8 imei_hex[7];
-	int temp;
 	/* msm_get_MEID_type(imei_temp); */
 	if (lgeusb_get_phone_id(imei_temp) < 0)
 		strcpy(imei_temp, "00000000000000");
-	temp = hex2bin(imei_hex, imei_temp, 7);
+	if (hex2bin(imei_hex, imei_temp, 7) < 0)
+		pr_err("%s [AUTORUN] : Error on hex2bin\n", __func__);
 	for (i = 0; i < 7; i++) {
 		buf[6-i] = imei_hex[i];
 	}
-	pr_info("[AUTORUN] %s: meid: %s\n", __func__, buf);
+	pr_info("[AUTORUN] %s: meid: %02x%02x%02x%02x%02x%02x%02x\n", __func__,
+					buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6]);
 	return 7;
 }
 
@@ -1527,12 +1533,25 @@ static int do_get_model(struct fsg_common *common, struct fsg_buffhd *bh)
 static int do_get_sub_ver(struct fsg_common *common, struct fsg_buffhd *bh)
 {
 	u8	*buf = (u8 *) bh->buf;
-	char sub_ver[2] = {0, };
+	char sub_ver[3] = {0, };
 	/* msm_get_SUB_VER_type(sub_ver); */
 	if (lgeusb_get_sub_ver(sub_ver) < 0)
 		sub_ver[0] = '0';
-	*buf = sub_ver[0];
-	pr_info("[AUTORUN] %s: sub_ver: %c\n", __func__, (char)*buf);
+	if (strlen(sub_ver) > 1) {
+		if (sub_ver[0] == '0')
+			*buf = sub_ver[1] - '0';
+		else if (sub_ver[0] == '1')
+			*buf = 'a' + sub_ver[1] - '0' - 87;
+		else if (sub_ver[0] == '2')
+			*buf = 'k' + sub_ver[1] - '0' - 87;
+		else if (sub_ver[0] == '3' &&
+				(sub_ver[1] < '6' &&  sub_ver[1] >= '0'))
+			*buf = 'u' + sub_ver[1] - '0' - 87;
+		else
+			 *buf = 0;
+	}else
+		*buf = sub_ver[0] - '0';
+	pr_info("[AUTORUN] %s: sub_ver: %d\n", __func__, (char)*buf);
 	return 1;
 }
 #endif

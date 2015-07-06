@@ -1481,7 +1481,7 @@ PopulateDot11fTPCReport(tpAniSirGlobal      pMac,
     }
 
     // FramesToDo: This function was "misplaced" in the move to Gen4_TVM...
-    //                                                                                         
+    // txPower = halGetRateToPwrValue( pMac, staid, pMac->lim.gLimCurrentChannelId, isBeacon );
     txPower = 0;
     pDot11f->tx_power    = ( tANI_U8 )txPower;
     pDot11f->link_margin = 0;

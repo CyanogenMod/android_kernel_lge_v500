@@ -326,24 +326,24 @@ wpt_int32 wpalPacketGetFragCount(wpt_packet *pPkt);
 ---------------------------------------------------------------------------*/
 wpt_status wpalIsPacketLocked( wpt_packet *pPacket);
 
-/*                                                                           
-                                                                    
-         
-                                              
+/*---------------------------------------------------------------------------
+   wpalGetNumRxRawPacket   Query available RX RAW total buffer count
+   param:
+       numRxResource  pointer of queried value
 
-          
-                               
-                                                                           */
+   return:
+       eWLAN_PAL_STATUS_SUCCESS
+---------------------------------------------------------------------------*/
 wpt_status wpalGetNumRxRawPacket(wpt_uint32 *numRxResource);
 
-/*                                                                           
-                                                                
-         
-                                              
+/*---------------------------------------------------------------------------
+   wpalGetNumRxFreePacket   Query available RX Free buffer count
+   param:
+       numRxResource  pointer of queried value
 
-          
-                 
-                                                                           */
+   return:
+       WPT_STATUS
+---------------------------------------------------------------------------*/
 wpt_status wpalGetNumRxFreePacket(wpt_uint32 *numRxResource);
 
 #endif // __WLAN_QCT_PAL_PACKET_H

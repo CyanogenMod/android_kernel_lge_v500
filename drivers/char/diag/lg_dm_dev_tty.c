@@ -213,7 +213,7 @@ static int lge_dm_dev_tty_read_thread(void *data)
 #endif /*CONFIG_DIAGFWD_BRIDGE_CODE*/
 	
 //	pr_info(DM_DEV_TTY_MODULE_NAME ": %s:"
-//                                                                                                       
+//		"set_logging = %d, logging_mode = %d\n",__func__, lge_dm_dev_tty->set_logging, driver->logging_mode);
 		
 	lge_dm_dev_tty_drv = lge_dm_dev_tty;
 

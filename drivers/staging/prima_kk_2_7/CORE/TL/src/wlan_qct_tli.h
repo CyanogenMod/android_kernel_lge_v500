@@ -1098,25 +1098,25 @@ WLANTL_ProcessTxMessage
   vos_msg_t*       message
 );
 
-/*                                                                          
-                                 
+/*==========================================================================
+  FUNCTION    WLAN_TLGetNextTxIds
 
-             
-                                                 
+  DESCRIPTION
+    Gets the next station and next AC in the list
 
-              
+  DEPENDENCIES
 
-            
+  PARAMETERS
 
-      
-                          
+   OUT
+   pucSTAId:    STAtion ID
 
-              
-                                                            
+  RETURN VALUE
+    The result code associated with performing the operation
 
-              
+  SIDE EFFECTS
 
-                                                                            */
+============================================================================*/
 VOS_STATUS
 WLAN_TLGetNextTxIds
 (

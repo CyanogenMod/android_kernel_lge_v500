@@ -32,9 +32,9 @@
 
 #include <linux/delay.h>
 
-//                           
+//#include <mach/board_lge.h>
 #include <linux/module.h>
-//                                              
+//#include "../../lge/include/lg_backup_items.h"
 #include <mach/msm_smsm.h>
 
 

@@ -206,16 +206,16 @@ WPAL_TIMER_STATE wpalTimerGetCurStatus(wpt_timer * pTimer)
    return vos_timer_getCurrentState( &pTimer->timer.timerObj );
 }/*wpalTimerGetCurStatus*/
 
-/*                                                                           
-                                                                  
+/*---------------------------------------------------------------------------
+    \brief wpalGetSystemTime - Get the system time in milliseconds
 
-           
-                                    
-                                                                           */
+    \return
+        current time in milliseconds
+---------------------------------------------------------------------------*/
 wpt_uint32 wpalGetSystemTime(void)
 {
    return vos_timer_get_system_time();
-}/*                 */
+}/*wpalGetSystemTime*/
 
 /*---------------------------------------------------------------------------
     wpalSleep - sleep for a specified interval

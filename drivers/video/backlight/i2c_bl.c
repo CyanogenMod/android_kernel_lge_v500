@@ -48,7 +48,12 @@ struct i2c_bl_device {
 	int min_brightness;
 	int max_brightness;
 	int default_brightness;
+#if defined(CONFIG_MACH_APQ8064_AWIFI)
+//	int factory_brightness;
+	int boot_batt_volt;
+#else
 	int factory_brightness;
+#endif
 	struct mutex bl_mutex;
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -68,6 +73,9 @@ struct i2c_bl_device {
 	int percentage_current;
 	unsigned long duration_step;
 };
+#if defined(CONFIG_MACH_APQ8064_AWIFI)
+//extern int limit_cpufreq;
+#endif
 
 static struct i2c_bl_device *main_i2c_bl_dev;
 
@@ -76,6 +84,24 @@ static const struct i2c_device_id i2c_bl_id[] = {
 	{ },
 };
 
+#if defined(CONFIG_MACH_APQ8064_AWIFI)
+#include <mach/msm_smsm.h>
+extern int lge_boot_mode_check;
+
+unsigned int get_battery_voltage_sbl3(void)
+{
+	unsigned int smem_size;
+	unsigned int *batt_volt;
+
+	batt_volt = smem_get_entry(SMEM_ID_VENDOR2, &smem_size);
+	if(smem_size==0 || !batt_volt)
+	{
+		return -EFAULT;
+	}
+
+	return *batt_volt;
+}
+#endif
 static void update_level_scale(struct work_struct *work);
 
 static int i2c_bl_read_reg(struct i2c_client *client, u8 reg, u8 *buf);
@@ -281,6 +307,17 @@ static void i2c_bl_set_main_current_level(struct i2c_client *client, int level)
 	{
 		level = pdata->factory_brightness;
 	}
+#if defined(CONFIG_MACH_APQ8064_AWIFI)
+  else if(lge_boot_mode_check==2) //charger logo mode
+	{
+		if(i2c_bl_dev->boot_batt_volt < 3250) 
+		{
+			level = 0xA;
+			//limit_cpufreq=1;
+		}
+	//	pr_info("bl levelll=%d  %d\n",level,get_battery_voltage_sbl3());
+	}
+#endif
 	if (level == -1)
 		level = i2c_bl_dev->default_brightness;
 
@@ -745,9 +782,12 @@ static int i2c_bl_probe(struct i2c_client *i2c_dev, const struct i2c_device_id *
 	{
 		pr_info("is_factory_cable\n");
 	    pdata->factory_mode = 1;
-		pdata->factory_brightness = 3;
+		//pdata->factory_brightness = 3;
 	}
     else pdata->factory_mode = 0;
+#if defined(CONFIG_MACH_APQ8064_AWIFI)
+	i2c_bl_dev->boot_batt_volt=get_battery_voltage_sbl3();
+#endif
 #if 0
 	if(pdata->factory_brightness <= 0)
 		i2c_bl_dev->factory_brightness = DEFAULT_FTM_BRIGHTNESS;

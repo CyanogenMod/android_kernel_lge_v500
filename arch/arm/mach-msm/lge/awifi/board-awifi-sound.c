@@ -291,10 +291,10 @@ static struct platform_device lge_hsd_device_fsa8008 = {
 static int __init lge_hsd_fsa8008_init(void)
 {
   //  hw_rev_type bd_rev = -1;
- //                                        
+ //   hw_rev_type lge_bd_rev = HW_REV_EVB1;
 	printk(KERN_INFO "lge_hsd_fsa8008_init\n");
 
-  //                                     
+  //  lge_bd_rev = lge_get_board_revno();
 
 
 		//                                                                                                 
@@ -304,7 +304,7 @@ static int __init lge_hsd_fsa8008_init(void)
         lge_hs_pdata_fsa8008.set_headset_mic_bias = tabla_codec_micbias3_ctl;
 		#endif
 		//                                                                                               
-   //                                                                                                                             
+   //     printk(KERN_INFO "lge_bd_rev : %d, < bd_rev : %d, so set_mic_bias = tabla_codec_micbias2_ctl!!!\n", lge_bd_rev, bd_rev);
 
 	return platform_device_register(&lge_hsd_device_fsa8008);
 }
@@ -352,10 +352,10 @@ static struct platform_device lge_hsd_device_max1462x = {
 static int __init lge_hsd_max1462x_init(void)
 {
  //   hw_rev_type bd_rev = -1;
-//                                        
+//   hw_rev_type lge_bd_rev = HW_REV_EVB1;
     printk(KERN_INFO "lge_hsd_max1462x_init\n");
 
-//                                       
+//    lge_bd_rev = lge_get_board_revno();
 //#ifndef CONFIG_MACH_APQ8064_GKATT
 #if !(defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV))
  
@@ -364,7 +364,7 @@ static int __init lge_hsd_max1462x_init(void)
 
 #else /* #ifndef CONFIG_MACH_APQ8064_GKATT */
     lge_hs_pdata_max1462x.set_headset_mic_bias = NULL;
-    //                                                                         
+    //printk(KERN_INFO "lge_bd_rev : %d, < bd_rev : %d\n", lge_bd_rev, bd_rev);
 #endif /* #ifndef CONFIG_MACH_APQ8064_GKATT */
 	return platform_device_register(&lge_hsd_device_max1462x);
 }

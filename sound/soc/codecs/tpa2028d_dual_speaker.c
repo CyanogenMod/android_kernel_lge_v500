@@ -493,6 +493,17 @@ static int tpa2028d_amp_remove(struct i2c_client *client)
 	return 0;
 }
 
+static void tpa2028d_amp_shutdown(struct i2c_client *client)
+{
+	int amp_no =0;
+	if ( !strncmp(client->name,"tpa2028d_amp", 12) ) {
+		amp_no=0;
+	} else if ( !strncmp(client->name,"tpa2028d2_amp", 13) ) {
+		amp_no=1;
+	}
+	D("%s : shutdown no %d amp\n",__func__, amp_no);
+	set_amp_gain(amp_no, SPK_OFF);
+}
 
 static struct i2c_device_id tpa2028d_amp_idtable[] = {
 	{ "tpa2028d_amp", 1 },
@@ -507,6 +518,7 @@ static struct i2c_device_id tpa2028d_amp2_idtable[] = {
 static struct i2c_driver tpa2028d_amp_driver = {
 	.probe = tpa2028d_amp_probe,
 	.remove = tpa2028d_amp_remove,
+	.shutdown = tpa2028d_amp_shutdown,
 	.id_table = tpa2028d_amp_idtable,
 	.driver = {
 		.name = "tpa2028d",
@@ -516,6 +528,7 @@ static struct i2c_driver tpa2028d_amp_driver = {
 static struct i2c_driver tpa2028d_amp2_driver = {
 	.probe = tpa2028d_amp_probe,
 	.remove = tpa2028d_amp_remove,
+	.shutdown = tpa2028d_amp_shutdown,
 	.id_table = tpa2028d_amp2_idtable,
 	.driver = {
 		.name = "tpa2028d2_amp",

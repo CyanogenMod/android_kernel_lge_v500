@@ -1686,7 +1686,7 @@ static void hub_free_dev(struct usb_device *udev)
 		hcd->driver->free_dev(hcd, udev);
 }
 
-#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
 static int modem_enumeration_check = 0;
 module_param(modem_enumeration_check, int, S_IRUGO | S_IWUSR);
 #endif
@@ -1720,7 +1720,7 @@ void usb_disconnect(struct usb_device **pdev)
 	dev_info(&udev->dev, "USB disconnect, device number %d\n",
 			udev->devnum);
 
-#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
 	modem_enumeration_check = 0;
 	printk("%s : set modem_enumeration_check to 0!\n", __func__);
 #endif
@@ -2048,7 +2048,7 @@ int usb_new_device(struct usb_device *udev)
 	/* Tell the world! */
 	announce_device(udev);
 
-#ifdef CONFIG_MACH_APQ8064_OMEGAR_KR
+#if defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_ALTEV)
 	if(udev->descriptor.idProduct == 0x9008)
 		modem_enumeration_check = 0x1;
 	else if(udev->descriptor.idProduct == 0x9048)

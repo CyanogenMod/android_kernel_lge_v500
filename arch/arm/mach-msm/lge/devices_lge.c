@@ -228,7 +228,7 @@ int lge_pm_get_cable_info(struct chg_cable_info *cable_info)
 }
 
 /* Belows are for using in interrupt context */
-//                                            
+//static struct chg_cable_info lge_cable_info;
 struct chg_cable_info lge_cable_info;
 
 acc_cable_type lge_pm_get_cable_type(void)
@@ -370,7 +370,7 @@ __setup("lge.kcal=", display_kcal_setup);
 #endif
 
 #ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
-int lge_boot_mode_for_touch = (int)LGE_BOOT_MODE_NORMAL;
+int lge_boot_mode_check = (int)LGE_BOOT_MODE_NORMAL;
 #endif
 
 /* get boot mode information from cmdline.
@@ -401,7 +401,7 @@ int __init lge_boot_mode_init(char *s)
 #endif
 
 #ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
-	lge_boot_mode_for_touch = (int)lge_boot_mode;
+	lge_boot_mode_check = (int)lge_boot_mode;
 #endif
 	return 1;
 }

@@ -67,7 +67,7 @@ static struct dsi_buf lgit_shutdown_tx_buf;
 #define INVERSION_MODE_ALWAYS_RECOVERY 2
 
 #if defined(CONFIG_MACH_APQ8064_GKU) || defined(CONFIG_MACH_APQ8064_GKATT) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
-/*                                                                                    */
+/* created lcd log partition by file system Team : http://lap.lge.com:8145/lap/219040 */
 #define LCD_MMC_DEVICENAME "/dev/block/mmcblk0p36"
 #elif defined(CONFIG_MACH_APQ8064_GKKT) || defined(CONFIG_MACH_APQ8064_GKSK) || defined(CONFIG_MACH_APQ8064_GVKT)
 #define LCD_MMC_DEVICENAME "/dev/block/mmcblk0p37"

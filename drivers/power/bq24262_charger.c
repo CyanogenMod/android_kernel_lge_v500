@@ -71,9 +71,10 @@ enum {
 };
 static int dpm_count;
 #endif
+static int dpm_check_count;
 
 //                                       
-//                                       
+//#include <mach/lge_charging_scenario.h>
 //#define MONITOR_BATTEMP_POLLING_PERIOD          (10*HZ)
 #define MONITOR_BATTEMP_POLLING_PERIOD          (60*1000)
 
@@ -2412,6 +2413,7 @@ static void bq24262_set_clear_reg(struct bq24262_chip *chip)
 
 	reg_vol_set_count=0;
 	dpm_count=0;
+	dpm_check_count=0;
 	dpm_retry_count=0;
 	last_stop_charging = 0;
 	chg_state = VZW_COMPATIBLE_CHG;
@@ -3027,24 +3029,39 @@ static void bq24262_dpm_detect_work(struct work_struct *work)
 			break;
 
 			case DPM_CHECK_FIRST:
-					if(bq24262_get_dpm_state(chip)){
-						bq24262_set_input_i_limit(chip, INPUT_CURRENT_LIMIT_500mA);
-						bq24262_set_ibat_max(chip, INPUT_CURRENT_LIMIT_500mA);
-						chip->set_chg_step = INPUT_CURRENT_LIMIT_500mA;
-						pr_info("%s : First ->DPM is active >> 900mA : active \n", __func__);
-						pr_info("%s : First ->Set current %d to 500\n", __func__, dpm_val);
+				if(bq24262_get_dpm_state(chip)){
+					bq24262_set_input_i_limit(chip,
+							INPUT_CURRENT_LIMIT_500mA);
+					bq24262_set_ibat_max(chip,
+							INPUT_CURRENT_LIMIT_500mA);
+					chip->set_chg_step = INPUT_CURRENT_LIMIT_500mA;
+					pr_info("%s:First->DPM is active >> 900mA : active \n",
+							__func__);
+					pr_info("%s:First->Set current %d to 500\n",
+							__func__, dpm_val);
+					if(dpm_check_count>=2) {
 						dpm_count = DPM_CHECK_DONE;
-						delay = 0;
+						pr_info("%s : DPM check_count : %d \n",
+								__func__, dpm_check_count+1);
+						dpm_check_count = 0;
+					} else {
+						pr_info("%s : DPM check_count : %d \n",
+								__func__, dpm_check_count+1);
+						dpm_check_count++;
 					}
-					else{
-						bq24262_set_input_i_limit(chip, INPUT_CURRENT_LIMIT_1500mA);
-						bq24262_set_ibat_max(chip, INPUT_CURRENT_LIMIT_1500mA);
-						chip->set_chg_step = INPUT_CURRENT_LIMIT_1500mA;
-						pr_info("%s : First ->DPM is not active >> 900mA : non -active \n", __func__);
-						pr_info("%s : First -> Set current %d to 1500\n", __func__, dpm_val);
-						dpm_count = DPM_CHECK_SECOND;
-						delay = 500;
-					}
+					delay = 500;
+				}
+				else{
+					bq24262_set_input_i_limit(chip, INPUT_CURRENT_LIMIT_1500mA);
+					bq24262_set_ibat_max(chip, INPUT_CURRENT_LIMIT_1500mA);
+					chip->set_chg_step = INPUT_CURRENT_LIMIT_1500mA;
+					pr_info("%s:First->DPM is not active>>900mA:non-active\n",
+							__func__);
+					pr_info("%s:First-> Set current %d to 1500\n",
+							__func__, dpm_val);
+					dpm_count = DPM_CHECK_SECOND;
+					delay = 500;
+				}
 
 			break;
 
@@ -3080,11 +3097,13 @@ static void bq24262_dpm_detect_work(struct work_struct *work)
 						pr_info("Final step : DPM is active in 1500mA, set 1500 to 900\n");
 						dpm_retry_count++;
 						dpm_count=0;
+						dpm_check_count=0;
 						return;
 					}
 					else{
 						dpm_retry_count++;
 						dpm_count=0;
+						dpm_check_count=0;
 						pr_info("DPM_detect_work done: Not slow charging\n");
 						return;
 					}
@@ -3197,6 +3216,7 @@ void set_vzw_charging_state(void)
 			chg_state = VZW_UNDER_CURRENT_CHG;
 			pr_info("%s : DPM is active=VZW_CHG_STATE ======  %d\n",__func__, chg_state);
 			dpm_count =0 ;
+			dpm_check_count=0;
 		}
 		// Stop charging animation on USB enumeration
 		else if(vzw_fast_chg_ma==VZW_TA_DETECTING_CURRENT){

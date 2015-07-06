@@ -2954,7 +2954,7 @@ int pseudo_batt_set(struct pseudo_batt_info_type* info)
 			pm8921_charger_vbus_draw(PSEUDO_BATT_MAX);
 	}
 	else {
-		if( //                                         
+		if( //lge_pm_get_cable_type() == CABLE_OPEN && 
 			the_chip->usb_type == POWER_SUPPLY_TYPE_USB_DCP)
 			search_iusb_max_status = IUSB_MAX_INCREASE;
 		else if(the_chip->usb_type == POWER_SUPPLY_TYPE_USB_DCP ||
@@ -3422,7 +3422,7 @@ int pm8921_set_usb_power_supply_type(enum power_supply_type type)
 		}
 	}
 
-		/*                                                                             */
+		/* louis.kang@lgepartner.com 2013-09-09 check 270K registance for speaker dock */
 #if defined(CONFIG_MACH_APQ8064_AWIFI070U)
 	if ( lge_pm_get_cable_type() == CABLE_270K && !slimport_is_connected() && type && type != POWER_SUPPLY_TYPE_USB_DCP ) {
 		if (dockdev.dev) switch_set_state(&dockdev, EXTRA_DOCK_STATE_070_DESK);
@@ -3869,7 +3869,7 @@ static void adaptive_usb_current_worker(struct work_struct *work)
 
 	/* Increase USB draw current
 		Conditiosn : TA && open type cable */
-	/*                                                                             */
+	/* louis.kang@lgepartner.com 2013-09-09 check 270K registance for speaker dock */
 #if defined(CONFIG_MACH_APQ8064_AWIFI070U)
 if ( (lge_pm_get_cable_type() == CABLE_NONE || lge_pm_get_cable_type() == CABLE_270K ) &&
 		the_chip->usb_type == POWER_SUPPLY_TYPE_USB_DCP &&

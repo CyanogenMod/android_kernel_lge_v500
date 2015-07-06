@@ -170,7 +170,7 @@ static struct pm8xxx_gpio_init pm8921_gpios[] __initdata = {
 	PM8921_GPIO_INPUT(14, PM_GPIO_PULL_DN),
 	PM8921_GPIO_OUTPUT(15, 0, HIGH), /* ANX_P_DWN_CTL */
 
-	/*                                                                                             */
+	/* When board revision are not EVBD2, disabled GPIO_17 in lge_add_i2c_anx7808_device function. */
 	PM8921_GPIO_OUTPUT(17, 0, HIGH), /* ANX_AVDD33_EN */
 #else
 	PM8921_GPIO_OUTPUT(14, 1, HIGH),	/* HDMI Mux Selector */
@@ -460,8 +460,8 @@ void __init apq8064_pm8xxx_gpio_mpp_init(void)
 	int i, rc;
 /*                                                    */
 #if defined(CONFIG_MACH_LGE)
-//                                      
-//                                    
+//	hw_rev_type lge_bd_rev = HW_REV_EVB1;
+//	lge_bd_rev = lge_get_board_revno();
 
 		apq8064_configure_gpios(pm8921_disabled_gpios, ARRAY_SIZE(pm8921_disabled_gpios));
 

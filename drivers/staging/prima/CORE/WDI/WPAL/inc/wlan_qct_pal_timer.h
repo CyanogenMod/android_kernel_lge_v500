@@ -122,12 +122,12 @@ wpt_status wpalTimerStop(wpt_timer * pTimer);
 ---------------------------------------------------------------------------*/
 WPAL_TIMER_STATE wpalTimerGetCurStatus(wpt_timer * pTimer);
 
-/*                                                                           
-                                                           
+/*---------------------------------------------------------------------------
+    wpalGetSystemTime - Get the system time in milliseconds
 
-          
-                                    
-                                                                           */
+    return
+        current time in milliseconds
+---------------------------------------------------------------------------*/
 wpt_uint32 wpalGetSystemTime(void);
 
 /*---------------------------------------------------------------------------

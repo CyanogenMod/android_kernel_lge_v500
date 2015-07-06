@@ -4133,8 +4133,8 @@ WLANTL_GetFrames
 
             break;
         }
-        /*                                                           
-                               */
+        /* ucCurrentAC should have correct AC to be served by calling
+           WLAN_TLGetNextTxIds */
         pClientSTA = pTLCb->atlSTAClients[ucSTAId];
         if ( NULL == pClientSTA )
         {
@@ -9844,47 +9844,47 @@ WLANTL_PrepareBDHeader
 #endif
 
 //THIS IS A HACK AND NEEDS TO BE FIXED FOR CONCURRENCY
-/*                                                                          
-                                 
+/*==========================================================================
+  FUNCTION    WLAN_TLGetNextTxIds
 
-             
-                                                                                  
+  DESCRIPTION
+    Gets the next station and next AC in the list that should be served by the TL.
 
-                                                         
+    Multiple Station Scheduling and TL queue management. 
 
-                                                                                         
-                                                                                       
-                                                                                        
-           
+    4 HDD BC/MC data packet queue status is specified as Station 0's status. Weights used
+    in WFQ algorith are initialized in WLANTL_OPEN and contained in tlConfigInfo field.
+    Each station has fields of ucPktPending and AC mask to tell whether a AC has traffic
+    or not.
       
-                                                                                          
-                                                                                                
-                                                                                                
-                                         
+    Stations are served in a round-robin fashion from highest priority to lowest priority.
+    The number of round-robin times of each prioirty equals to the WFQ weights and differetiates
+    the traffic of different prioirty. As such, stations can not provide low priority packets if
+    high priority packets are all served.
 
-              
+  DEPENDENCIES
 
-            
+  PARAMETERS
 
-     
-                                                                    
-                                                                
+   IN
+   pvosGCtx:     pointer to the global vos context; a handle to TL's
+                 control block can be extracted from its context
 
-      
-                          
+   OUT
+   pucSTAId:    Station ID
 
-              
-                                                            
+  RETURN VALUE
+    The result code associated with performing the operation
 
-                                            
+    VOS_STATUS_SUCCESS:   Everything is good
 
-              
+  SIDE EFFECTS
    
-                                                                                             
-                                                                               
-                                                                               
+   TL context contains currently served station ID in ucCurrentSTA field, currently served AC
+   in uCurServedAC field, and unserved weights of current AC in uCurLeftWeight.
+   When existing from the function, these three fields are changed accordingly.
 
-                                                                            */
+============================================================================*/
 VOS_STATUS
 WLAN_TLAPGetNextTxIds
 (
@@ -10052,32 +10052,32 @@ WLAN_TLAPGetNextTxIds
 }
 
 
-/*                                                                          
-                                 
+/*==========================================================================
+  FUNCTION    WLAN_TLGetNextTxIds
 
-             
-                                                 
+  DESCRIPTION
+    Gets the next station and next AC in the list
 
-              
+  DEPENDENCIES
 
-            
+  PARAMETERS
 
-     
-                                                                    
-                                                                
+   IN
+   pvosGCtx:     pointer to the global vos context; a handle to TL's
+                 control block can be extracted from its context
 
-      
-                          
+   OUT
+   pucSTAId:    Station ID
 
 
-              
-                                                            
+  RETURN VALUE
+    The result code associated with performing the operation
 
-                                               
+    VOS_STATUS_SUCCESS:   Everything is good :)
 
-              
+  SIDE EFFECTS
 
-                                                                            */
+============================================================================*/
 VOS_STATUS
 WLAN_TLGetNextTxIds
 (
@@ -10250,7 +10250,7 @@ WLAN_TLGetNextTxIds
              pTLCb->atlSTAClients[*pucSTAId]->ucCurrentWeight));
 
   return VOS_STATUS_SUCCESS;
-}/*                     */
+}/* WLAN_TLGetNextTxIds */
 
 
 

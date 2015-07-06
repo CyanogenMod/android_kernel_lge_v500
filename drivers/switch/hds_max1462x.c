@@ -980,7 +980,7 @@ static void __exit lge_hsd_exit(void)
 }
 
 /* to make init after pmic8058-othc module */
-/*                            */
+/* module_init(lge_hsd_init); */
 late_initcall_sync(lge_hsd_init);
 module_exit(lge_hsd_exit);
 

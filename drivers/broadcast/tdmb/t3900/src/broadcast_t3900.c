@@ -64,8 +64,8 @@ static struct msm_xo_voter *xo_handle_tdmb;
 #define T3900_DMB_RESET_N         94     /* RESET, OUT, LOW_ACTIVE */
 #define T3900_DMB_EN              98    /* PWR_EN, OUT, HIGH_ACTIVE */
 /*
-                              
-                                                                        
+* Extended GPIOs from PMIC8921
+* Refer to kernel/arch/arm/mach-msm/lge/board_d1l_pm.c for registration.
 */
 #define DMB_ANT_SEL_EAR	          16
 #define DMB_ANT_SEL_INN	          17

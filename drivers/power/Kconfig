@@ -597,4 +597,10 @@ config LGE_DOCK
 	help
 	  Say Y to enable LG electronics Dock Chager connection sceanario
 
+config LGE_PM_SHUTDOWN_MDM_IN_CHARGERLOGO
+	bool "shutdown mdm if chargerlogo is executed"
+	depends on LGE_PM
+	help
+	  shutdown mdm if chargerlogo is executed for CEC
+
 endif # POWER_SUPPLY

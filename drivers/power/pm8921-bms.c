@@ -1158,7 +1158,7 @@ static int read_soc_params_raw(struct pm8921_bms_chip *chip,
 			est_ocv_uv = estimate_ocv(chip);
 #endif
 
-//          
+//lge_update
 #if defined(CONFIG_MACH_APQ8064_AWIFI) || defined(CONFIG_MACH_APQ8064_ALTEV)
        if(chip->warm_restart_flag==0)
        {

@@ -821,7 +821,7 @@ static struct mxt_platform_data touch_mxt1188S_pdata = {
 #endif
 #ifdef CUST_A_TOUCH
 	.accuracy_filter_enable = 0,
-	.ghost_detection_enable = 0,
+	.ghost_detection_enable = 1,
 #endif
 };
 

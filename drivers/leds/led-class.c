@@ -92,7 +92,7 @@ static ssize_t led_max_brightness_show(struct device *dev,
 	return snprintf(buf, LED_BUFF_SIZE, "%u\n", led_cdev->max_brightness);
 }
 
-//                                                                                          
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20140110 Add  Node - Thermal status {
 #if defined(CONFIG_MACH_APQ8064_ALTEV)
 static int lge_thm_status = 0;
 static ssize_t thermald_status_show(struct device *dev,
@@ -120,7 +120,7 @@ static ssize_t thermald_status_store(struct device *dev,
 	return rc;
 }
 #endif /* CONFIG_MACH_APQ8064_ALTEV */
-//                                                                                          
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20140110 Support Check Mode for VZW }
 
 static struct device_attribute led_class_attrs[] = {
 	__ATTR(brightness, 0644, led_brightness_show, led_brightness_store),
@@ -130,7 +130,7 @@ static struct device_attribute led_class_attrs[] = {
 	__ATTR(trigger, 0644, led_trigger_show, led_trigger_store),
 #endif
 
-//                                                                                          
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20140110 Add  Node - Thermal status {
 #if defined(CONFIG_MACH_APQ8064_ALTEV)
     __ATTR(thermald_status, 0644, thermald_status_show, thermald_status_store),
 #endif

@@ -108,7 +108,7 @@ extern int refresh_qlut_display(void);
 	defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WUXGA_INVERSE_PT)
 #define MSM_FB_WFD_BUF_SIZE \
 		(roundup((1920 * 1208 * 2), 4096) * 3) /* 2 bpp x 3 page */
-#else		
+#else
 #define MSM_FB_WFD_BUF_SIZE \
 		(roundup((1280 * 736 * 2), 4096) * 3) /* 2 bpp x 3 page */
 #endif
@@ -1540,8 +1540,8 @@ void __init apq8064_init_fb(void)
 /*                                                                                            */
 #if defined(CONFIG_LGE_BACKLIGHT_CABC)
 
-//                                                                                                  
-#if defined(CONFIG_MACH_APQ8064_ALTEV) && defined(CONFIG_MACH_APQ8064_AWIFI)
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20131112 Enable  CABC, regardless of hw_rev {
+#if defined(CONFIG_MACH_APQ8064_ALTEV) || defined(CONFIG_MACH_APQ8064_AWIFI)
     platform_add_devices(awifi_panel_devices,ARRAY_SIZE(awifi_panel_devices));
     pr_warn("(%s) : Enable CABC.\n", __func__);
     pr_debug("%d\n", ARRAY_SIZE(awifi_panel_devices_noCABC));    // compile error!!!, to avoid warning "defined but not used"
@@ -1552,7 +1552,7 @@ void __init apq8064_init_fb(void)
         platform_add_devices(awifi_panel_devices_noCABC,ARRAY_SIZE(awifi_panel_devices_noCABC));
     }
 #endif // CONFIG_MACH_APQ8064_ALTEV && CONFIG_MACH_APQ8064_AWIFI
-//                                                                                                   
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20131112 Enable  CABC, regardless of hw_rev  }
 
 #else
     platform_add_devices(awifi_panel_devices,ARRAY_SIZE(awifi_panel_devices));
@@ -1794,8 +1794,8 @@ static struct i2c_bl_platform_data lm3532_i2c_bl_data = {
 	.i2c_addr = 0x38,
 	.min_brightness = 0x05,
 	.max_brightness = 0xFF,
-	.default_brightness = 0x9C,
-	.factory_brightness = 0x78,
+	.default_brightness = 0x54, //not use. check msm_fb.c
+	.factory_brightness = 0x3,
 
 	.init_cmds = i2c_bl_init_lm3532_cmd,
 	.init_cmds_size = ARRAY_SIZE(i2c_bl_init_lm3532_cmd),
@@ -1815,7 +1815,7 @@ static struct i2c_bl_platform_data lm3532_i2c_bl_data = {
 	.blmap = i2c_bl_mapped_lm3532_value,
 	.blmap_size = ARRAY_SIZE(i2c_bl_mapped_lm3532_value),
 };
-
+#ifdef AWIFI_SUPPORT_EVB2
 static char i2c_bl_mapped_lp8556_value[256] = {
 	  3,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,  4,  4,  4,  4,   // 14
 	  4,  4,  4,  4,  4,  4,  4,  5,  5,  5,  5,  5,  5,  5,  5,   // 29
@@ -1909,6 +1909,7 @@ static struct i2c_bl_platform_data lp8556_i2c_bl_data = {
 	.blmap_size = ARRAY_SIZE(i2c_bl_mapped_lp8556_value),
 };
 #endif
+#endif
 
 static struct i2c_board_info msm_i2c_backlight_info[] = {
 #if defined(CONFIG_BACKLIGHT_LM3530)
@@ -1939,7 +1940,9 @@ void __init register_i2c_backlight_devices(void)
 	int i;
 
 	/* Build the matching 'supported_machs' bitmask */
-	if (machine_is_apq8064_cdp())
+	if (machine_is_apq8064_awifi())
+		mach_mask = I2C_FFA;
+	else if (machine_is_apq8064_cdp())
 		mach_mask = I2C_SURF;
 	else if (machine_is_apq8064_mtp())
 		mach_mask = I2C_FFA;
@@ -1949,13 +1952,12 @@ void __init register_i2c_backlight_devices(void)
 		mach_mask = I2C_RUMI;
 	else if (machine_is_apq8064_sim())
 		mach_mask = I2C_SIM;
-	else if (machine_is_apq8064_awifi())
-		mach_mask = I2C_FFA;
 	else
 		pr_err("unmatched machine ID in register_i2c_devices\n");
 
 /*                                                                       */
 #if defined(CONFIG_BACKLIGHT_I2C_BL)
+#ifdef AWIFI_SUPPORT_EVB2
 	if (lge_get_board_revno() == HW_REV_EVB2) {
 		struct i2c_board_info *board_info = msm_i2c_backlight_info;
 		while(board_info<&msm_i2c_backlight_info[ARRAY_SIZE(msm_i2c_backlight_info)]) {
@@ -1966,6 +1968,7 @@ void __init register_i2c_backlight_devices(void)
 			}
 		}
 	}
+#endif
 #endif
 /*                                                                     */
 

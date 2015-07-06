@@ -1,10 +1,10 @@
-/*                                                                    
-  
-                                 
-                     
-                                             
-  
-                                                                    */
+/*********************************************************************
+ *
+ * Filename:      lge_irtty-sir.c
+ * Version:       2.0
+ * Description:   please refer to irtty-sir.c
+ *
+ ********************************************************************/
 
 #include <linux/module.h>
 #include <linux/kernel.h>

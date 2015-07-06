@@ -4307,7 +4307,7 @@ static void __init apq8064_cdp_init(void)
 		platform_add_devices(uart_devices, ARRAY_SIZE(uart_devices));
 	}
 	//pr_info("[NORMAL-DEBUG] apq8064_device_uart_gsbi4.id : %d",  apq8064_device_uart_gsbi4.id);
-	//                                                          
+	//pr_info("[DEBUG] uart_enable : %d", lge_get_uart_mode() );
 
 
 	apq8064_init_fb();

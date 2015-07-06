@@ -5,7 +5,7 @@
 #include <linux/fs.h>
 #include <asm/uaccess.h>
 
-/*                                                                   */
+/* refer from android/vendor/lge/bsp/atd_demigod/lgftmitem/ftmitem.h */
 #define LGFTM_PORTLOCK_STATE        26
 #define LGFTM_PORTLOCK_STATE_SIZE   1
 #define FTM_BLOCK_SIZE              2048

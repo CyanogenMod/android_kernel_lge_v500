@@ -40,8 +40,8 @@
 #include "wcdcal-hwdep.h"
 
 #ifdef CONFIG_LGE_AUDIO
-#define CONFIG_USE_REMOVE_AUX_NOISE //                                       
-#include <linux/regulator/consumer.h> //                                  
+#define CONFIG_USE_REMOVE_AUX_NOISE //http://lap.lge.com:8145/lap/#/c/195681/
+#include <linux/regulator/consumer.h> //http://lap.lge.com:8145/lap/107633
 #endif
 //                                                          
 #if defined(CONFIG_SND_SOC_ES325_SLIM)
@@ -8759,7 +8759,7 @@ void tabla_codec_micbias2_ctl(int enable)
 	}
 }
 
-//                                  
+//http://lap.lge.com:8145/lap/107633
 static bool fsa8008_mic_bias = false;
 
 void set_headset_mic_bias_l29(int on)

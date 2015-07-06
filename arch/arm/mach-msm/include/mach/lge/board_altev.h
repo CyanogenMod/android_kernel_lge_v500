@@ -26,7 +26,7 @@
 #define ADC_NO_INIT_CABLE_MIN   0
 #define ADC_CABLE_56K_MIN       50000
 #define ADC_CABLE_130K_MIN      190000
-#define ADC_CABLE_270K_MIN      475000		/*                                                                             */
+#define ADC_CABLE_270K_MIN      475000		/* louis.kang@lgepartner.com 2013-09-09 check 270K registance for speaker dock */
 #define ADC_CABLE_330K_MIN      550000
 #define ADC_CABLE_910K_MIN      950000
 #define ADC_CABLE_OPEN_MIN      1650000
@@ -34,7 +34,7 @@
 #define ADC_NO_INIT_CABLE_MAX   0
 #define ADC_CABLE_56K_MAX       185000
 #define ADC_CABLE_130K_MAX      340000
-#define ADC_CABLE_270K_MAX      550000		/*                                                                             */
+#define ADC_CABLE_270K_MAX      550000		/* louis.kang@lgepartner.com 2013-09-09 check 270K registance for speaker dock */
 #define ADC_CABLE_330K_MAX      725000
 #define ADC_CABLE_910K_MAX      1100000
 #define ADC_CABLE_OPEN_MAX      1800000

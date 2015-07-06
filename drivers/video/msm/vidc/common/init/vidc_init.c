@@ -557,13 +557,13 @@ u32 vidc_lookup_addr_table(struct video_client_ctx *client_ctx,
 		return false;
 
 #if defined(CONFIG_MACH_APQ8064_ALTEV)
-//                                                                                                      
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20131106 Avoid Kernel Crash, when Fatory reset. {
 // Try mutex_lock() in null, It can happen kernel crash,
     if (&client_ctx->enrty_queue_lock == NULL) {
         ERR("%s(): Warnning!, After released mutex of video_client_ctx, Try to reference null pointer.\n", __func__);
         return false;
     }
-//                                                                                                       
+// [altev][bsp display], sunghun1.jung@lgepartner.com, 20131106 Avoid Kernel Crash, when Fatory reset.  }
 #endif
 
 	mutex_lock(&client_ctx->enrty_queue_lock);

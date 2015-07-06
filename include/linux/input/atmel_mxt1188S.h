@@ -140,6 +140,16 @@ enum{
 	CARD_Y_LAND = 1000
 };
 
+enum{
+	TIME_START_TIME,
+	TIME_CURR_TIME,
+	TIME_RESUME_END,
+	TIME_TA_DETECT,
+	TIME_CAL_START,
+	TIME_EX_PROFILE_MAX
+};
+
+
 /* The platform data for the Atmel maXTouch touchscreen driver */
 struct mxt_platform_data {
 	u8    numtouch;	/* Number of touches to report	*/

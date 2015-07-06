@@ -4264,7 +4264,7 @@ limSendTpcReportFrame(tpAniSirGlobal            pMac,
 
     // FramesToDo: On the Gen4_TVM branch, there was a comment:
     // "misplaced this function, need to replace:
-    //                                            
+    // txPower = halGetRateToPwrValue(pMac, staid,
     //     pMac->lim.gLimCurrentChannelId, 0);
     frm.TPCReport.tx_power    = 0;
     frm.TPCReport.link_margin = 0;

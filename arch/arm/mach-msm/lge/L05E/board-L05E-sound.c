@@ -135,7 +135,7 @@ static struct i2c_board_info msm_i2c_audiosubsystem_info[] = {
 
 
 static struct i2c_registry msm_i2c_audiosubsystem __initdata = {
-	/*                                                                   */
+	/* Add the I2C driver for Audio Amp, ehgrace.kim@lge.cim, 06/13/2011 */
 		 I2C_SURF | I2C_FFA | I2C_RUMI | I2C_SIM | I2C_LIQUID,
 		APQ_8064_GSBI1_QUP_I2C_BUS_ID,
 		msm_i2c_audiosubsystem_info,

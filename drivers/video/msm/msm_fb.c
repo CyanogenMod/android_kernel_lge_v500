@@ -73,6 +73,10 @@ extern int load_888rle_image(char *filename);
 #undef CONFIG_HAS_EARLYSUSPEND
 #endif
 
+#ifdef CONFIG_MACH_LGE
+static int shutdown_status;
+#endif
+
 static unsigned char *fbram;
 static unsigned char *fbram_phys;
 static int fbram_size;
@@ -450,6 +454,11 @@ static void msm_fb_shutdown(struct platform_device *pdev)
        }
        lock_fb_info(mfd->fbi);
        msm_fb_release_all(mfd->fbi, true);
+
+#ifdef CONFIG_MACH_LGE
+	   if (mfd->index == 0)
+		   shutdown_status = 1;
+#endif
        unlock_fb_info(mfd->fbi);
 }
 static int msm_fb_probe(struct platform_device *pdev)
@@ -988,7 +997,7 @@ static int bl_level_old = 0xF0;
 static int default_bl_value = 164;
 #elif defined (CONFIG_BACKLIGHT_I2C_BL)
 static int bl_level_old = 0xF0;
-static int default_bl_value = 110;
+static int default_bl_value = 0x54;
 #else /* QCT Original */
 static int bl_level_old;
 #endif
@@ -1111,12 +1120,18 @@ static int msm_fb_blank_sub(int blank_mode, struct fb_info *info,
 		return -ENODEV;
 	}
 
+
   pr_info("%s: mfd->index=%d, blank_mode=%d\n", __func__,mfd->index, blank_mode);
 	switch (blank_mode) {
 	case FB_BLANK_UNBLANK:
 		if (!mfd->panel_power_on) {
 #if defined(CONFIG_MACH_LGE)
 			if(mfd->index == 0) {
+				if (shutdown_status == 1) {
+					pr_err("can't unblank display. fb0 has already terminated!\n");
+					return -EINVAL;
+				}
+
 				do{
 					ret = pdata->on(mfd->pdev);
 					if(ret == 0) {
@@ -1458,7 +1473,7 @@ static int msm_fb_register(struct msm_fb_data_type *mfd)
 #if defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_WXGA_PT)
   /* G */
   var->height = 102,      /* height of picture in mm */
-  var->width = 61,        /* width of picture in mm */    
+  var->width = 61,        /* width of picture in mm */
 #elif defined(CONFIG_FB_MSM_MIPI_HITACHI_VIDEO_HD_PT) || defined(CONFIG_FB_MSM_MIPI_LGIT_VIDEO_HD_PT_PANEL)
   /* GJ, F9J */
 	var->height = 99,	/* height of picture in mm */

@@ -343,11 +343,14 @@ enum{
 	TIME_EX_FIRST_GHOST_DETECT_TIME,
 	TIME_EX_SECOND_GHOST_DETECT_TIME,
 	TIME_EX_CURR_INT_TIME,
-	TIME_EX_PROFILE_MAX
+	TIME_EX_PROFILE_MAX_GHOST
 };
 
+#define get_time_interval(a,b) a>=b ? a-b : 1000000+a-b
+struct timeval time_ex_debug[TIME_EX_PROFILE_MAX_GHOST];
+struct timeval t_ex_debug_stylus[TIME_EX_PROFILE_MAX];
+
 static unsigned int rebase_count =0;
-struct timeval time_ex_debug[TIME_EX_PROFILE_MAX];
 struct t_data	 prev_finger_press_data;
 int finger_subtraction_check_cnt = 0;
 bool ghost_detected = 0;
@@ -1410,6 +1413,19 @@ static int mxt_t8_autocal_set(struct mxt_data *data, u8 set_number)
 	dev_info(&data->client->dev, "T8 autocal set%d (%d %d %d %d)\n", set_number, buf[0], buf[1], buf[2], buf[3]);
 	data->autocal_step = set_number;
 	return ret;
+}
+
+bool chk_time_interval(struct timeval t_aft, struct timeval t_bef, int t_val)
+{
+	if( t_aft.tv_sec - t_bef.tv_sec == 0 ) {
+		if((get_time_interval(t_aft.tv_usec, t_bef.tv_usec)) <= t_val)
+			return true;
+	} else if( t_aft.tv_sec - t_bef.tv_sec == 1 ) {
+		if( t_aft.tv_usec + 1000000 - t_bef.tv_usec <= t_val)
+			return true;
+	}
+
+	return false;
 }
 
 static void mxt_ghost_detection(struct mxt_data *data)
@@ -3102,6 +3118,12 @@ static char* get_tool_type(struct mxt_data *data, struct t_data touch_data) {
 	return "Unknown";
 }
 
+static u16 gap_of_position(u16 pos_aft, u16 pos_bef){
+	u16 result;
+	result = (pos_aft - pos_bef < 0) ? (pos_bef - pos_aft) : (pos_aft - pos_bef);
+	return result;
+}
+
 static int mxt_soft_reset(struct mxt_data *data);
 #endif
 
@@ -3251,6 +3273,64 @@ static irqreturn_t mxt_process_messages_t44(struct mxt_data *data)
 		report_count = 0;
 		multi_stylus_cnt = 0;
 		return IRQ_HANDLED;
+	}
+
+	if(data->ts_data.total_num) {
+		static struct t_data pen_data[MXT_MAX_NUM_TOUCHES];
+		static struct timeval t_pen_start[MXT_MAX_NUM_TOUCHES];
+		static struct timeval t_pen_prev[MXT_MAX_NUM_TOUCHES];
+		for (i = 0; i < MXT_MAX_NUM_TOUCHES ; i++) {
+			if (data->ts_data.curr_data[i].is_pen) {
+				if (data->ts_data.curr_data[i].status == FINGER_PRESSED || data->ts_data.curr_data[i].status == FINGER_MOVED) {
+					if(!pen_data[i].is_pen) {
+						//first detection
+						do_gettimeofday(&t_pen_start[i]);
+						memcpy(&t_pen_prev[i], &t_pen_start[i], sizeof(t_pen_prev[i]));
+						memcpy(&pen_data[i], &data->ts_data.curr_data[i], sizeof(pen_data[i]));
+						dev_dbg(&data->client->dev, "[Ghost]pen_ghost start <%d> x:%u y:%u s:%d\n", i,
+							data->ts_data.curr_data[i].x_position, data->ts_data.curr_data[i].y_position, data->ts_data.curr_data[i].status);
+					} else {
+						//in 50ms //x,y in 50
+						do_gettimeofday(&t_ex_debug_stylus[TIME_CURR_TIME]);
+						if( chk_time_interval(t_ex_debug_stylus[TIME_CURR_TIME], t_pen_prev[i], 50000)
+							&& gap_of_position(pen_data[i].x_position, data->ts_data.curr_data[i].x_position) <=50
+							&& gap_of_position(pen_data[i].y_position, data->ts_data.curr_data[i].y_position) <=50
+							) {
+							dev_dbg(&data->client->dev, "[Ghost]pen_ghost stuck? <%d> x:%u y:%u s:%d\n", i,
+								data->ts_data.curr_data[i].x_position, data->ts_data.curr_data[i].y_position, data->ts_data.curr_data[i].status);
+							memcpy(&t_pen_prev[i], &t_ex_debug_stylus[TIME_CURR_TIME], sizeof(t_pen_prev[i]));
+							//for 5 secs
+							if( t_ex_debug_stylus[TIME_CURR_TIME].tv_sec - t_pen_start[i].tv_sec >= 5){
+								dev_info(&data->client->dev, "[Ghost]pen_ghost run calibration! <%d> x:%u y:%u s:%d\n", i,
+									data->ts_data.curr_data[i].x_position, data->ts_data.curr_data[i].y_position, data->ts_data.curr_data[i].status);
+								mxt_t6_command(data, MXT_COMMAND_CALIBRATE, 1, false);
+								mxt_reset_slots(data);
+								//init
+								pen_data[i].is_pen = false;
+								goto out;
+							}
+						} else {
+							//init
+							pen_data[i].is_pen = false;
+							dev_dbg(&data->client->dev,"[Ghost]pen_ghost init, not in Condition <%d> x:%u y:%u\n", i,
+								data->ts_data.curr_data[i].x_position, data->ts_data.curr_data[i].y_position);
+						}
+					}
+				} else {
+					if(pen_data[i].is_pen){
+						//init
+						pen_data[i].is_pen = false;
+						dev_dbg(&data->client->dev,"[Ghost]pen_ghost init, Release <%d>\n", i);
+					}
+				}
+			} else {
+				if(pen_data[i].is_pen){
+					//init
+					pen_data[i].is_pen = false;
+					dev_dbg(&data->client->dev,"[Ghost]pen_ghost init, Finger <%d>\n", i);
+				}
+			}
+		}
 	}
 
 #ifdef CUST_A_TOUCH
@@ -5558,9 +5638,9 @@ static struct attribute *mxt_attrs[] = {
 	NULL
 };
 
-/*                                           
-  
-                               
+/* lge_touch_attr_show / lge_touch_attr_store
+ *
+ * sysfs bindings for lge_touch
  */
 static ssize_t lge_touch_attr_show(struct kobject *lge_touch_kobj, struct attribute *attr,
 			     char *buf)
@@ -5965,7 +6045,7 @@ static int __devinit mxt_probe(struct i2c_client *client,
 	struct mxt_data *data;
 	int error;
 #ifdef CUST_A_TOUCH
-	int one_sec = 100; //                   
+	int one_sec = 100; //from lge_touch_core
 	touch_thermal_mode = 0;
 #endif
 	is_probing = true;
@@ -6414,13 +6494,13 @@ static struct i2c_driver mxt_driver = {
 
 
 #ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
-extern int lge_boot_mode_for_touch;
+extern int lge_boot_mode_check;
 #endif
 
 static int __init mxt_init(void)
 {
 #ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
-	if (lge_boot_mode_for_touch == 2) { // Chargerlogo mode
+	if (lge_boot_mode_check == 2) { // Chargerlogo mode
 		return -EMLINK;
 	}
 #endif
@@ -6438,7 +6518,7 @@ static int __init mxt_init(void)
 static void __exit mxt_exit(void)
 {
 #ifdef CONFIG_LGE_PM_CHARGING_CHARGERLOGO
-	if (lge_boot_mode_for_touch == 2) { // Chargerlogo mode
+	if (lge_boot_mode_check == 2) { // Chargerlogo mode
 		return;
 	}
 #endif

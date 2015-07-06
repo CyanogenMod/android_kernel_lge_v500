@@ -1276,10 +1276,10 @@ static int ecm_function_bind_config(struct android_usb_function *f,
 		return -1;
 	}
 
-   /*                                              
-                          
-                                    
-                                   
+   /* serial_string consists of model and serialnum
+     * "$model-$serialnum"
+     * please, refer init.lge.usb.sh
+     * generate ethadd by serialnum
      */
     memset(ecm->ethaddr, 0, ETH_ALEN);
     ecm->ethaddr[0] = 0x02;

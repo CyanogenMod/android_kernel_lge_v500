@@ -709,6 +709,14 @@ config TSPDRV
         default n
 # 120215 younghan.kim@lge.com Porting Immersion Vib[E]
 
+config LGE_EVENT_LOCK
+    bool "factory 250-99 key lock cmd"
+    default n
+	depends on MACH_LGE
+    help
+      Support for keylock cmd using evdev.
+      If you need feature for keylock cmd using evdev, use this.
+
 source "drivers/misc/c2port/Kconfig"
 source "drivers/misc/eeprom/Kconfig"
 source "drivers/misc/cb710/Kconfig"
