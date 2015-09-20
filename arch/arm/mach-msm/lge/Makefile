@@ -14,6 +14,5 @@ obj-$(CONFIG_LGE_SUSPEND_AUTOTEST) += lge_suspend_autotest.o
 obj-$(CONFIG_MACH_LGE) += lge_blocking_monitor.o
 obj-$(CONFIG_LGE_ECO_MODE) += lge_kernel_driver.o
 obj-$(CONFIG_LGE_MSM_HSIC_TTY) += hsic_tty.o
-obj-$(CONFIG_MACH_LGE) += lge_mmc_strength_control.o
 
 CFLAGS_devices_lge.o += -Idrivers/staging/android

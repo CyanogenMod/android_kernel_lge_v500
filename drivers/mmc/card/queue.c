@@ -58,15 +58,14 @@ static int mmc_queue_thread(void *d)
 {
 	struct mmc_queue *mq = d;
 	struct request_queue *q = mq->queue;
-	struct request *req;
 	struct mmc_card *card = mq->card;
 
 	current->flags |= PF_MEMALLOC;
 
 	down(&mq->thread_sem);
 	do {
+		struct request *req = NULL;
 		struct mmc_queue_req *tmp;
-		req = NULL;	/* Must be set to NULL at each iteration */
 
 		spin_lock_irq(q->queue_lock);
 		set_current_state(TASK_INTERRUPTIBLE);
@@ -364,11 +363,10 @@ EXPORT_SYMBOL(mmc_cleanup_queue);
  * complete any outstanding requests.  This ensures that we
  * won't suspend while a request is being processed.
  */
-int mmc_queue_suspend(struct mmc_queue *mq)
+void mmc_queue_suspend(struct mmc_queue *mq)
 {
 	struct request_queue *q = mq->queue;
 	unsigned long flags;
-	int rc = 0;
 
 	if (!(mq->flags & MMC_QUEUE_SUSPENDED)) {
 		mq->flags |= MMC_QUEUE_SUSPENDED;
@@ -377,20 +375,8 @@ int mmc_queue_suspend(struct mmc_queue *mq)
 		blk_stop_queue(q);
 		spin_unlock_irqrestore(q->queue_lock, flags);
 
-		rc = down_trylock(&mq->thread_sem);
-		if (rc) {
-			/*
-			 * Failed to take the lock so better to abort the
-			 * suspend because mmcqd thread is processing requests.
-			 */
-			mq->flags &= ~MMC_QUEUE_SUSPENDED;
-			spin_lock_irqsave(q->queue_lock, flags);
-			blk_start_queue(q);
-			spin_unlock_irqrestore(q->queue_lock, flags);
-			rc = -EBUSY;
-		}
+		down(&mq->thread_sem);
 	}
-	return rc;
 }
 
 /**

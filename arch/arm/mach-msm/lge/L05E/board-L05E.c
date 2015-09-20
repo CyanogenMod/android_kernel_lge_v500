@@ -3979,9 +3979,6 @@ static void __init apq8064_cdp_init(void)
 #ifdef CONFIG_LGE_ECO_MODE
 	lge_add_lge_kernel_devices();
 #endif
-#ifdef CONFIG_LGE_ENABEL_MMC_STRENGTH_CONTROL
- lge_add_mmc_strength_devices();
-#endif 
 }
 
 MACHINE_START(APQ8064_CDP, "QCT APQ8064 CDP")

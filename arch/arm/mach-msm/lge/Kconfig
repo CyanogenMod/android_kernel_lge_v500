@@ -138,13 +138,6 @@ config LGE_BACKLIGHT_CABC
 	depends on MACH_LGE
 	help
 	  Interface to apply backlight cabc
-
-config LGE_ENABEL_MMC_STRENGTH_CONTROL
-    bool "Support MMC Strength Control"
-    default n
-    depends on MACH_LGE
-    help
-      LGE mmc data,cmd,clk strength control support
 endmenu
 
 config LGE_MSM_HSIC_TTY
