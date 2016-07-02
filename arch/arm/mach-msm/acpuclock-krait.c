@@ -49,8 +49,10 @@
 #define PRI_SRC_SEL_HFPLL	1
 #define PRI_SRC_SEL_HFPLL_DIV2	2
 
+#ifdef CONFIG_MACH_LGE
 int g_speed_bin;
 int g_pvs_bin;
+#endif
 
 #if defined(CONFIG_MACH_APQ8064_GK_KR) || defined(CONFIG_MACH_APQ8064_GKATT)\
 		|| defined(CONFIG_MACH_APQ8064_GVDCM) || defined(CONFIG_MACH_APQ8064_GV_KR) || defined(CONFIG_MACH_APQ8064_GKGLOBAL) || defined(CONFIG_MACH_APQ8064_OMEGAR_KR) || defined(CONFIG_MACH_APQ8064_OMEGA_KR)
@@ -1121,6 +1123,15 @@ static struct pvs_table * __init select_freq_plan(
 		dev_warn(drv.dev, "ACPU PVS: Defaulting to %d\n",
 			 drv.pvs_bin);
 	}
+
+/*
+ * added userspace interface for speed_bin & pvs_bin info
+ * 2013-06-07 fred.cho@lge.com
+ */
+#ifdef CONFIG_MACH_LGE
+	g_speed_bin = drv.speed_bin;
+	g_pvs_bin = drv.pvs_bin;
+#endif
 
 	return &params->pvs_tables[drv.speed_bin][drv.pvs_bin];
 }
