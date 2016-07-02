@@ -24,8 +24,11 @@
 
 #define BUILD_ID_LENGTH 32
 
+#ifdef CONFIG_MACH_LGE
 extern int g_speed_bin;
 extern int g_pvs_bin;
+#endif
+
 enum {
 	HW_PLATFORM_UNKNOWN = 0,
 	HW_PLATFORM_SURF    = 1,
@@ -422,14 +425,18 @@ uint32_t socinfo_get_pmic_die_revision(void)
 		: 0;
 }
 
+#ifdef CONFIG_MACH_LGE
 int socinfo_get_speed_bin(void)
 {
 	return g_speed_bin;
 }
+
 int socinfo_get_pvs_bin(void)
 {
 	return g_pvs_bin;
 }
+#endif
+
 enum msm_cpu socinfo_get_msm_cpu(void)
 {
 	return cur_cpu;
@@ -638,6 +645,7 @@ socinfo_show_pmic_die_revision(struct sys_device *dev,
 		socinfo_get_pmic_die_revision());
 }
 
+#ifdef CONFIG_MACH_LGE
 static ssize_t
 socinfo_show_speed_bin(struct sys_device *dev,
 		       struct sysdev_attribute *attr,
@@ -646,6 +654,7 @@ socinfo_show_speed_bin(struct sys_device *dev,
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 		socinfo_get_speed_bin());
 }
+
 static ssize_t
 socinfo_show_pvs_bin(struct sys_device *dev,
 		     struct sysdev_attribute *attr,
@@ -654,12 +663,16 @@ socinfo_show_pvs_bin(struct sys_device *dev,
 	return snprintf(buf, PAGE_SIZE, "%u\n",
 		socinfo_get_pvs_bin());
 }
+#endif
+
 static struct sysdev_attribute socinfo_v1_files[] = {
 	_SYSDEV_ATTR(id, 0444, socinfo_show_id, NULL),
 	_SYSDEV_ATTR(version, 0444, socinfo_show_version, NULL),
 	_SYSDEV_ATTR(build_id, 0444, socinfo_show_build_id, NULL),
+#ifdef CONFIG_MACH_LGE
 	_SYSDEV_ATTR(speed_bin, 0444, socinfo_show_speed_bin, NULL),
 	_SYSDEV_ATTR(pvs_bin, 0444, socinfo_show_pvs_bin, NULL),
+#endif
 };
 
 static struct sysdev_attribute socinfo_v2_files[] = {
