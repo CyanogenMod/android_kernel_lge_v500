@@ -271,6 +271,7 @@ show_map_vma(struct seq_file *m, struct vm_area_struct *vma, int is_pid)
 	unsigned long long pgoff = 0;
 	unsigned long start, end;
 	dev_t dev = 0;
+	int len;
 	const char *name = NULL;
 
 	if (file) {
