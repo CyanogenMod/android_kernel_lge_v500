@@ -1779,11 +1779,7 @@ struct msm_vidc_platform_data apq8064_vidc_platform_data = {
 #endif
 	.disable_dmx = 0,
 	.disable_fullhd = 0,
-#ifdef CONFIG_MACH_APQ8064_AWIFI
-	.cont_mode_dpb_count = 14,
-#else
 	.cont_mode_dpb_count = 18,
-#endif
 	.fw_addr = 0x9fe00000,
 	.enable_sec_metadata = 0,
 };
