@@ -4227,6 +4227,7 @@ static int touch_resume(struct device *device)
 
 static struct i2c_device_id lge_ts_id[] = {
 	{LGE_TOUCH_NAME, 0 },
+	{ }
 };
 
 #if defined(CONFIG_PM)
